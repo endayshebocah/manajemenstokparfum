@@ -1,0 +1,2206 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manajemen Parfum</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+            overflow-x: hidden;
+        }
+
+        /* --- Splash Screen Animation --- */
+        #splash-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #111827;
+            transition: opacity 0.5s ease-in-out, visibility 0.5s ease-in-out;
+        }
+        #splash-screen.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+        .spinner {
+            width: 56px;
+            height: 56px;
+            border: 7px solid #4a5568;
+            border-top-color: #a855f7;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        /* --- End Splash Screen --- */
+
+        /* --- Modal Styling --- */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.75);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            z-index: 40;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        .modal-backdrop.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            transform: scale(0.95);
+            opacity: 0;
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+        }
+        .modal-backdrop.visible .modal-content {
+            transform: scale(1);
+            opacity: 1;
+        }
+        /* --- End Modal Styling --- */
+
+        @keyframes animated-gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .animated-gradient {
+            background-size: 200% 200%;
+            animation: animated-gradient 8s ease infinite;
+        }
+        .animated-title {
+            background-image: linear-gradient(270deg, #a855f7, #ec4899, #ef4444, #f97316, #eab308, #84cc16, #3b82f6, #a855f7);
+        }
+        .btn-3d {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        }
+        .btn-3d:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+        }
+        .btn-3d:active { transform: translateY(1px); }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .accordion-content.open { max-height: 2000px; }
+        .radio-label input:checked + .radio-custom {
+            border-color: #a855f7;
+            background-color: #a855f7;
+        }
+        #drop-area {
+            border: 2px dashed #4a5568;
+            transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+        }
+        #drop-area.highlight {
+            background-color: #2d3748;
+            border-color: #a855f7;
+        }
+        .vertical-scrollbar::-webkit-scrollbar { width: 8px; }
+        .vertical-scrollbar::-webkit-scrollbar-track { background: #1f2937; }
+        .vertical-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #4b5563;
+            border-radius: 10px;
+        }
+        .vertical-scrollbar::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        .form-content-wrapper {
+            max-height: 1000px;
+            transition: max-height 0.7s ease-in-out, margin-top 0.7s ease-in-out, opacity 0.5s ease-in-out;
+        }
+        .form-content-wrapper.hidden {
+            max-height: 0;
+            margin-top: 0 !important;
+            opacity: 0;
+            overflow: hidden;
+            padding-top: 0 !important;
+            border-top-width: 0 !important;
+        }
+        #pin-input-field, #branch-pin-input {
+            letter-spacing: 0.5em;
+            text-align: center;
+            font-size: 1.5rem;
+        }
+        .custom-dropdown {
+            transform-origin: top;
+            transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+        }
+        .editable-user:focus, .editable-branch:focus {
+            background-color: #4b5563;
+            outline: 2px solid #a855f7;
+        }
+        .payment-btn.selected {
+            background-color: #a855f7;
+            border-color: #c084fc;
+            color: white;
+        }
+        .filter-btn.selected {
+            background-color: #a855f7;
+            border-color: #c084fc;
+            color: white;
+        }
+        .catalog-card img {
+            aspect-ratio: 1 / 1;
+            object-fit: cover;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white antialiased min-h-screen">
+
+    <!-- Splash Screen -->
+    <div id="splash-screen">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="main-content" class="min-h-screen flex flex-col items-center opacity-0 transition-opacity duration-700">
+        <div id="lobby-screen" class="w-full max-w-md text-center p-4">
+            <h1 class="text-4xl md:text-5xl font-bold bg-clip-text text-transparent animated-gradient animated-title mb-8">
+                Manajemen Parfum
+            </h1>
+            <div class="bg-gray-800 p-6 md:p-8 rounded-2xl shadow-2xl space-y-6">
+                <form id="join-room-form" class="space-y-4">
+                    <div>
+                        <label for="user-select" class="block text-lg font-semibold text-gray-300 mb-2">Pilih Nama Anda</label>
+                        <select id="user-select" required class="w-full bg-gray-700 text-center border border-gray-600 rounded-lg px-3 py-3 focus:ring-2 focus:ring-purple-500 focus:outline-none" disabled>
+                            <option value="">-- Mengautentikasi... --</option>
+                        </select>
+                    </div>
+                    <div id="branch-select-container" class="hidden">
+                        <label for="branch-select-lobby" class="block text-lg font-semibold text-gray-300 mb-2">Pilih Cabang Anda</label>
+                        <select id="branch-select-lobby" required class="w-full bg-gray-700 text-center border border-gray-600 rounded-lg px-3 py-3 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                            <option value="">-- Memuat cabang... --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <h2 class="text-xl md:text-2xl font-semibold text-green-400 mb-2 mt-4">Masuk Ruangan Tetap</h2>
+                        <p class="text-gray-400 mb-4">ID Ruangan: <span class="font-mono text-white">endayshebocah</span></p>
+                        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg btn-3d" disabled>
+                            Masuk
+                        </button>
+                    </div>
+                </form>
+                <div class="mt-6 border-t border-gray-700 pt-6">
+                     <button id="admin-login-btn" type="button" class="w-full text-yellow-400 hover:text-yellow-300 font-semibold py-2 px-4 rounded-lg" disabled>
+                        Masuk sebagai Admin Utama
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="app-container" class="hidden w-full h-screen flex flex-col max-w-3xl mx-auto px-2 sm:px-4">
+            <header class="relative flex justify-between items-center py-4 flex-shrink-0 gap-4">
+                <div class="flex-grow">
+                    <h1 class="text-2xl font-bold bg-clip-text text-transparent animated-gradient animated-title">
+                        Manajemen Parfum
+                    </h1>
+                    <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <div class="flex items-center gap-1.5">
+                             <span class="text-xs font-semibold text-gray-400">ID:</span>
+                             <span id="room-id-display" class="font-mono text-xs bg-gray-700 text-purple-300 px-2 py-0.5 rounded"></span>
+                        </div>
+                        <div id="online-users-section" class="flex items-center gap-1.5 text-xs">
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1 sm:gap-2">
+                    <button id="nav-lock-button" class="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-yellow-500" title="Kunci Navigasi">
+                         <svg id="nav-lock-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"></svg>
+                    </button>
+                    <button id="leave-room-button" class="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500" title="Keluar Ruangan">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                    <div class="relative">
+                        <button id="menu-button" class="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+                            </svg>
+                        </button>
+                        <div id="dropdown-menu" class="hidden absolute right-0 mt-2 w-64 bg-gray-800 rounded-xl shadow-2xl z-20 border-2 border-purple-500 p-2 space-y-2">
+                            <div id="branch-reports-container" class="lockable-action space-y-2"></div>
+                            <hr class="border-gray-600">
+                            <a href="#" id="permanent-users-btn" class="lockable-action block px-4 py-3 text-base text-white font-semibold bg-orange-600 rounded-lg hover:bg-orange-700 transition-colors">Daftar Pengguna Tetap</a>
+                            <a href="#" id="branch-settings-btn" class="lockable-action block px-4 py-3 text-base text-white font-semibold bg-lime-600 rounded-lg hover:bg-lime-700 transition-colors">Pengaturan Cabang</a>
+                            <a href="#" id="pin-settings-btn" class="lockable-action block px-4 py-3 text-base text-white font-semibold bg-yellow-600 rounded-lg hover:bg-yellow-700 transition-colors">Pengaturan PIN</a>
+                            <hr class="border-gray-600">
+                            <a href="#" id="export-excel-btn" class="lockable-action block px-4 py-3 text-base text-white font-semibold bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">Ekspor Laporan Lengkap</a>
+                            <a href="#" id="open-import-modal" class="lockable-action block px-4 py-3 text-base text-white font-semibold bg-yellow-600 rounded-lg hover:bg-yellow-700 transition-colors">Impor dari CSV</a>
+                            <a href="#" id="open-trash-modal-btn" class="lockable-action block px-4 py-3 text-base text-white font-semibold bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors">Tong Sampah</a>
+                            <hr class="border-gray-600">
+                            <a href="#" id="delete-all-data-btn" class="lockable-action block px-4 py-3 text-base text-white font-semibold bg-red-700 rounded-lg hover:bg-red-800 transition-colors">Hapus Semua Data Ruangan</a>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main class="flex-grow flex flex-col min-h-0">
+                <section id="input-section" class="relative z-10 p-4 bg-gray-800 rounded-xl shadow-2xl flex-shrink-0 border-2 border-purple-500 mb-4">
+                    <button id="toggle-form-btn" class="w-full flex justify-between items-center text-left">
+                        <h2 id="form-title" class="text-xl font-semibold">Input Transaksi Baru</h2>
+                        <svg id="form-toggle-icon" class="w-6 h-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <div id="form-content-wrapper" class="form-content-wrapper mt-4 border-t-2 border-purple-500 pt-4 hidden">
+                        <form id="perfume-form" class="space-y-4">
+                            <input type="hidden" id="editing-id">
+                            <div class="p-2 bg-gray-700 rounded-lg">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="tanggal" class="block text-sm font-medium text-gray-300 mb-1">Tanggal</label>
+                                        <input type="date" id="tanggal" required class="w-full bg-gray-600 border border-gray-500 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                                    </div>
+                                    <div class="relative">
+                                        <label for="wangi-parfum" class="block text-sm font-medium text-gray-300 mb-1">Wangi Parfum</label>
+                                        <input type="text" id="wangi-parfum" placeholder="Contoh: Baccarat" required autocomplete="off" class="w-full bg-gray-600 border border-gray-500 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                                        <div id="autocomplete-suggestions" class="hidden absolute z-10 w-full bg-gray-600 border border-gray-500 rounded-b-lg mt-1 max-h-40 overflow-y-auto"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                               <label class="block text-sm font-medium text-gray-300 mb-1">Jenis Transaksi</label>
+                               <div id="jenis-transaksi" class="flex gap-4 p-2 bg-gray-700 rounded-lg">
+                                   <label class="radio-label flex-1 text-center cursor-pointer">
+                                       <input type="radio" name="transaction_type" value="masuk" class="sr-only" checked>
+                                       <span class="radio-custom block w-full p-2 rounded-md border-2 border-transparent transition-colors bg-gray-600">Masuk</span>
+                                   </label>
+                                   <label class="radio-label flex-1 text-center cursor-pointer">
+                                       <input type="radio" name="transaction_type" value="keluar" class="sr-only">
+                                       <span class="radio-custom block w-full p-2 rounded-md border-2 border-transparent transition-colors bg-gray-600">Keluar</span>
+                                   </label>
+                               </div>
+                           </div>
+                            <div class="grid grid-cols-2 gap-4 p-2 bg-gray-700 rounded-lg">
+                                <div>
+                                    <label for="jumlah" class="block text-sm font-medium text-gray-300 mb-1">Jumlah (ml)</label>
+                                    <input type="number" id="jumlah" min="1" placeholder="0" required class="w-full bg-gray-600 border border-gray-500 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                                </div>
+                                <div class="relative">
+                                    <label for="cabang" class="block text-sm font-medium text-gray-300 mb-1">Cabang</label>
+                                    <select id="cabang" class="hidden"></select>
+                                    <button type="button" id="form-branch-button" class="w-full text-left flex justify-between items-center bg-gray-600 border border-gray-500 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                                        <span id="form-selected-branch-display"></span>
+                                        <svg class="w-5 h-5 text-gray-400 transform transition-transform" id="form-branch-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                                    </button>
+                                    <div id="form-branch-dropdown" class="hidden absolute left-0 mt-2 w-full bg-gray-800 rounded-xl shadow-2xl z-20 border-2 border-purple-500 p-2 transform opacity-0 scale-95 custom-dropdown">
+                                        <div id="form-branch-options-container" class="space-y-2"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="customer-section-container" class="hidden">
+                                <div class="p-2 bg-gray-700 rounded-lg grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                    <div class="relative sm:col-span-1">
+                                        <button type="button" id="customer-details-button" class="w-full h-full text-left flex justify-between items-center bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-2 px-4 rounded-lg btn-3d">
+                                            <span id="customer-details-btn-text">Data Pembeli</span>
+                                            <svg class="w-5 h-5 text-gray-400 transform transition-transform" id="customer-details-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                                        </button>
+                                        <div id="customer-details-dropdown" class="hidden absolute left-0 mt-2 w-full min-w-[300px] bg-gray-800 rounded-xl shadow-2xl z-20 border-2 border-yellow-500 p-4 transform opacity-0 scale-95 custom-dropdown space-y-3">
+                                            <input type="hidden" id="customer-id">
+                                            <div class="relative">
+                                                <label for="nama-pembeli" class="block text-sm font-medium text-gray-300 mb-1">Nama</label>
+                                                <input type="text" id="nama-pembeli" placeholder="Cari atau tambah baru..." autocomplete="off" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none">
+                                                <div id="customer-autocomplete" class="hidden absolute z-10 w-full bg-gray-600 border border-gray-500 rounded-b-lg mt-1 max-h-32 overflow-y-auto"></div>
+                                            </div>
+                                            <div>
+                                                <label for="whatsapp-pembeli" class="block text-sm font-medium text-gray-300 mb-1">No. Whatsapp</label>
+                                                <input type="tel" id="whatsapp-pembeli" placeholder="08..." class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none">
+                                            </div>
+                                            <div>
+                                                <label for="catatan-pembeli" class="block text-sm font-medium text-gray-300 mb-1">Catatan</label>
+                                                <textarea id="catatan-pembeli" rows="2" placeholder="Preferensi, dll." class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none"></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button type="button" id="open-catalog-btn" class="sm:col-span-1 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-2 px-4 rounded-lg btn-3d">Daftar List Parfum</button>
+                                    <button type="button" id="open-customer-list-btn" class="sm:col-span-1 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-2 px-4 rounded-lg btn-3d">Daftar Pelanggan</button>
+                                </div>
+                            </div>
+                            <div class="flex flex-col sm:flex-row gap-4 pt-4">
+                                <button type="submit" id="submit-btn" class="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-bold py-3 px-4 rounded-lg btn-3d">
+                                    Bayar dan Simpan Transaksi
+                                </button>
+                                <button type="button" id="cancel-edit-btn" class="hidden w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg btn-3d">
+                                    Batal Edit
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+                <section class="flex-shrink-0 mb-4">
+                    <div class="flex flex-col sm:flex-row gap-4 p-2 bg-gray-700 rounded-lg">
+                        <button id="open-report-modal" class="lockable-action flex-1 text-center bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-md btn-3d">Laporan Global</button>
+                        <button id="open-settings-modal" class="lockable-action flex-1 text-center bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-md btn-3d">Pengaturan Harga</button>
+                    </div>
+                </section>
+                
+                <section class="flex-grow flex flex-col min-h-0">
+                    <div class="mb-4">
+                        <div id="category-header-section" class="p-3 bg-gray-800 rounded-xl flex flex-col sm:flex-row justify-between items-center border-2 border-purple-500 gap-4">
+                             <h2 class="text-2xl font-bold text-center sm:text-left">Kategori Stok Parfum</h2>
+                             <button id="open-recap-modal-btn" class="text-center bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-md btn-3d w-full sm:w-auto">Rekapan Transaksi</button>
+                        </div>
+                    </div>
+
+                    <div id="perfume-categories-container" class="flex-grow overflow-y-auto vertical-scrollbar pr-2 space-y-4 pb-4">
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="customer-list-modal" class="modal-backdrop hidden">
+        <div class="modal-content bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-2xl max-h-[85vh] flex flex-col">
+            <div class="flex-shrink-0 flex justify-between items-center mb-4">
+                 <h3 class="text-2xl font-bold text-teal-400">Daftar Pelanggan</h3>
+                 <button class="close-modal-btn p-2 rounded-full hover:bg-gray-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <div class="flex-shrink-0 mb-4">
+                <input type="text" id="customer-search-input" placeholder="Cari nama pelanggan..." class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:outline-none">
+            </div>
+            <div id="customer-list-container" class="flex-grow overflow-y-auto vertical-scrollbar pr-2 space-y-3"></div>
+        </div>
+    </div>
+    <div id="catalog-modal" class="modal-backdrop hidden">
+        <div class="modal-content bg-gray-800 rounded-lg shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+            <div class="flex-shrink-0 flex justify-between items-center p-4 border-b border-gray-700">
+                <h3 class="text-2xl font-bold text-indigo-400">Katalog Parfum</h3>
+                <div class="flex gap-2">
+                    <button id="manage-images-btn" class="lockable-action p-2 rounded-full bg-yellow-600 hover:bg-yellow-700 btn-3d" title="Kelola Gambar">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    </button>
+                    <button class="close-modal-btn p-2 rounded-full hover:bg-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+            </div>
+            <div id="catalog-grid-container" class="flex-grow overflow-y-auto vertical-scrollbar p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"></div>
+        </div>
+    </div>
+     <div id="image-manager-modal" class="modal-backdrop hidden z-50">
+        <div class="modal-content bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-2xl max-h-[85vh] flex flex-col">
+            <div class="flex-shrink-0 flex justify-between items-center mb-4">
+                 <h3 class="text-2xl font-bold text-yellow-400">Kelola Gambar Parfum</h3>
+                 <button class="close-modal-btn p-2 rounded-full hover:bg-gray-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <div id="image-manager-list" class="flex-grow overflow-y-auto vertical-scrollbar pr-2 space-y-3"></div>
+             <form id="add-perfume-to-catalog-form" class="flex-shrink-0 flex gap-2 border-t border-gray-700 pt-4 mt-4">
+                <input type="text" id="new-perfume-name" placeholder="Nama parfum baru" class="flex-grow bg-gray-700 border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none" required>
+                <button type="submit" class="btn-3d bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-2 px-4 rounded-lg">Tambah</button>
+            </form>
+            <div class="flex-shrink-0 flex justify-end pt-6 border-t border-gray-700 mt-4">
+                <button id="save-images-btn" class="btn-3d bg-green-600 hover:bg-green-700 font-semibold py-2 px-6 rounded-lg">Simpan Gambar</button>
+            </div>
+        </div>
+    </div>
+    <div id="recap-modal" class="modal-backdrop hidden">
+        <div class="modal-content bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-2xl">
+            <div class="flex-shrink-0 flex justify-between items-center mb-6">
+                <h3 class="text-2xl sm:text-3xl font-bold text-sky-400">Filter Transaksi</h3>
+                <button class="close-modal-btn p-2 rounded-full hover:bg-gray-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <div class="flex-grow grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="recap-start-date" class="block text-sm font-medium text-gray-400 mb-1">Tanggal Mulai</label>
+                            <input type="date" id="recap-start-date" class="w-full bg-gray-700 border-gray-600 rounded-lg px-3 py-2">
+                        </div>
+                        <div>
+                            <label for="recap-end-date" class="block text-sm font-medium text-gray-400 mb-1">Tanggal Selesai</label>
+                            <input type="date" id="recap-end-date" class="w-full bg-gray-700 border-gray-600 rounded-lg px-3 py-2">
+                        </div>
+                    </div>
+                    <div class="flex-shrink-0 sm:w-1/3 relative">
+                        <label for="recap-branch-button" class="block text-sm font-medium text-gray-400 mb-1">Cabang</label>
+                        <button type="button" id="recap-branch-button" class="w-full text-left flex justify-between items-center bg-gray-700 border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                            <span id="recap-selected-branch-display">Semua Cabang</span>
+                            <svg class="w-5 h-5 text-gray-400 transform transition-transform" id="recap-branch-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                        <div id="recap-branch-dropdown" class="hidden absolute left-0 mt-2 w-full bg-gray-800 rounded-xl shadow-2xl z-20 border-2 border-purple-500 p-2 transform opacity-0 scale-95 custom-dropdown">
+                            <div id="recap-branch-options-container" class="space-y-2"></div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-2">Jenis Transaksi</label>
+                    <div id="recap-filter-container" class="space-y-2">
+                        <div class="flex gap-2 p-2 bg-gray-700 rounded-lg">
+                            <button class="filter-btn btn-3d flex-1 bg-gray-600 hover:bg-gray-500 text-sm font-semibold py-2 px-3 rounded-md border-2 border-transparent" data-filter="stok-parfum">Stok Parfum</button>
+                            <button class="filter-btn btn-3d flex-1 bg-gray-600 hover:bg-gray-500 text-sm font-semibold py-2 px-3 rounded-md border-2 border-transparent" data-filter="masuk">Masuk</button>
+                            <button class="filter-btn btn-3d flex-1 bg-gray-600 hover:bg-gray-500 text-sm font-semibold py-2 px-3 rounded-md border-2 border-transparent" data-filter="keluar">Keluar</button>
+                        </div>
+                        <div class="flex flex-wrap gap-2 p-2 bg-gray-700 rounded-lg">
+                            <button class="filter-btn btn-3d flex-1 bg-gray-600 hover:bg-gray-500 text-sm font-semibold py-2 px-3 rounded-md border-2 border-transparent" data-filter="Tunai">Tunai</button>
+                            <button class="filter-btn btn-3d flex-1 bg-gray-600 hover:bg-gray-500 text-sm font-semibold py-2 px-3 rounded-md border-2 border-transparent" data-filter="Debit/Kredit">Debit/Kredit</button>
+                            <button class="filter-btn btn-3d flex-1 bg-gray-600 hover:bg-gray-500 text-sm font-semibold py-2 px-3 rounded-md border-2 border-transparent" data-filter="QRIS">QRIS</button>
+                            <button class="filter-btn btn-3d flex-1 bg-gray-600 hover:bg-gray-500 text-sm font-semibold py-2 px-3 rounded-md border-2 border-transparent" data-filter="Bayar Nanti">Bayar Nanti</button>
+                        </div>
+                    </div>
+                </div>
+                <button id="show-recap-btn" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-4 rounded-lg btn-3d mt-6">Tampilkan Hasil</button>
+            </div>
+        </div>
+    </div>
+    <div id="payment-modal" class="modal-backdrop hidden">
+        <div class="modal-content bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-md">
+            <h3 class="text-xl font-bold text-purple-400 mb-2">Konfirmasi Pembayaran</h3>
+            <div class="bg-gray-900 p-4 rounded-lg text-center mb-6">
+                <p class="text-gray-400 text-sm">Total Tagihan</p>
+                <p id="payment-total-amount" class="text-4xl font-bold text-white">Rp 0</p>
+            </div>
+            <div class="space-y-4">
+                <p class="text-sm font-medium text-gray-300">Pilih Metode Pembayaran:</p>
+                <div class="grid grid-cols-2 gap-4">
+                    <button class="payment-btn btn-3d bg-gray-700 hover:bg-gray-600 font-semibold py-3 px-4 rounded-lg border-2 border-transparent" data-method="Tunai">Tunai</button>
+                    <button class="payment-btn btn-3d bg-gray-700 hover:bg-gray-600 font-semibold py-3 px-4 rounded-lg border-2 border-transparent" data-method="Debit/Kredit">Debit/Kredit</button>
+                    <button class="payment-btn btn-3d bg-gray-700 hover:bg-gray-600 font-semibold py-3 px-4 rounded-lg border-2 border-transparent" data-method="QRIS">QRIS</button>
+                    <button class="payment-btn btn-3d bg-gray-700 hover:bg-gray-600 font-semibold py-3 px-4 rounded-lg border-2 border-transparent" data-method="Bayar Nanti">Bayar Nanti</button>
+                </div>
+                <div id="cash-payment-details" class="hidden space-y-2 pt-4 border-t border-gray-700">
+                    <div>
+                        <label for="cash-received" class="block text-sm font-medium text-gray-400 mb-1">Uang Diterima (Rp)</label>
+                        <input type="number" id="cash-received" placeholder="0" class="w-full bg-gray-700 border-gray-500 rounded-lg px-3 py-2 focus:outline-none">
+                    </div>
+                    <div class="bg-gray-900 p-3 rounded-lg flex justify-between items-center">
+                        <span class="font-semibold text-gray-300">Kembalian:</span>
+                        <span id="cash-change" class="text-xl font-bold text-green-400">Rp 0</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-4 pt-6">
+                <button id="cancel-payment-btn" class="btn-3d bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-6 rounded-lg">Batal</button>
+                <button id="confirm-payment-btn" class="btn-3d bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-6 rounded-lg" disabled>Konfirmasi</button>
+            </div>
+        </div>
+    </div>
+    <div id="settings-modal" class="modal-backdrop hidden">
+        <div class="modal-content bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-3xl">
+            <h3 class="text-xl font-bold text-purple-400 mb-4">Pengaturan Harga</h3>
+            <form id="settings-form" class="space-y-4">
+                <div class="p-4 rounded-lg border border-gray-600">
+                    <button type="button" class="accordion-toggle w-full flex justify-between items-center">
+                        <h4 class="text-lg font-semibold text-gray-200">Ukuran 30 ml</h4>
+                        <svg class="w-6 h-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    <div class="accordion-content mt-4 pt-4 border-t border-gray-700">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="harga-beli-30" class="block text-sm font-medium text-gray-400 mb-1">Harga Beli /ml</label>
+                                <input type="number" id="harga-beli-30" placeholder="1666" class="w-full bg-gray-700 border-gray-500 rounded-lg px-3 py-2 focus:outline-none">
+                            </div>
+                            <div>
+                                <label for="harga-jual-30" class="block text-sm font-medium text-gray-400 mb-1">Harga Jual /ml</label>
+                                <input type="number" id="harga-jual-30" placeholder="2666" class="w-full bg-gray-700 border-gray-500 rounded-lg px-3 py-2 focus:outline-none">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 rounded-lg border border-gray-600">
+                    <button type="button" class="accordion-toggle w-full flex justify-between items-center">
+                        <h4 class="text-lg font-semibold text-gray-200">Ukuran 50 ml</h4>
+                        <svg class="w-6 h-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    <div class="accordion-content mt-4 pt-4 border-t border-gray-700">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="harga-beli-50" class="block text-sm font-medium text-gray-400 mb-1">Harga Beli /ml</label>
+                                <input type="number" id="harga-beli-50" placeholder="1500" class="w-full bg-gray-700 border-gray-500 rounded-lg px-3 py-2 focus:outline-none">
+                            </div>
+                            <div>
+                                <label for="harga-jual-50" class="block text-sm font-medium text-gray-400 mb-1">Harga Jual /ml</label>
+                                <input type="number" id="harga-jual-50" placeholder="2200" class="w-full bg-gray-700 border-gray-500 rounded-lg px-3 py-2 focus:outline-none">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 rounded-lg border border-gray-600">
+                    <button type="button" class="accordion-toggle w-full flex justify-between items-center">
+                        <h4 class="text-lg font-semibold text-gray-200">Ukuran 100 ml</h4>
+                        <svg class="w-6 h-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    <div class="accordion-content mt-4 pt-4 border-t border-gray-700">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="harga-beli-100" class="block text-sm font-medium text-gray-400 mb-1">Harga Beli /ml</label>
+                                <input type="number" id="harga-beli-100" placeholder="1100" class="w-full bg-gray-700 border-gray-500 rounded-lg px-3 py-2 focus:outline-none">
+                            </div>
+                            <div>
+                                <label for="harga-jual-100" class="block text-sm font-medium text-gray-400 mb-1">Harga Jual /ml</label>
+                                <input type="number" id="harga-jual-100" placeholder="2100" class="w-full bg-gray-700 border-gray-500 rounded-lg px-3 py-2 focus:outline-none">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 rounded-lg bg-gray-900/50 border border-dashed border-yellow-500">
+                    <h4 class="text-lg font-semibold text-yellow-400 mb-2">Default untuk Laporan & Lainnya</h4>
+                     <p class="text-xs text-gray-400 mb-3">Harga ini digunakan jika jumlah penjualan bukan 30, 50, atau 100 ml.</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="harga-beli-default" class="block text-sm font-medium text-gray-400 mb-1">Harga Beli Default</label>
+                            <input type="number" id="harga-beli-default" placeholder="1500" class="w-full bg-gray-700 border-gray-500 rounded-lg px-3 py-2 focus:outline-none">
+                        </div>
+                        <div>
+                            <label for="harga-jual-default" class="block text-sm font-medium text-gray-400 mb-1">Harga Jual Default</label>
+                            <input type="number" id="harga-jual-default" placeholder="2200" class="w-full bg-gray-700 border-gray-500 rounded-lg px-3 py-2 focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-4 pt-4">
+                    <button type="button" class="close-modal-btn btn-3d bg-gray-600 hover:bg-gray-700 font-semibold py-2 px-6 rounded-lg">Tutup</button>
+                    <button type="submit" class="btn-3d bg-purple-600 hover:bg-purple-700 font-semibold py-2 px-6 rounded-lg">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="report-modal" class="modal-backdrop hidden">
+        <div class="modal-content bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-2xl max-h-[85vh] flex flex-col">
+            <h3 id="report-modal-title" class="text-2xl font-bold text-green-400 mb-6 flex-shrink-0">Laporan Keuntungan</h3>
+            <div class="flex-grow overflow-y-auto vertical-scrollbar pr-4 space-y-6">
+                <div class="bg-gray-900/50 rounded-lg">
+                     <button class="accordion-toggle w-full flex justify-between items-center p-4 text-left">
+                        <h4 class="text-lg font-semibold text-gray-300">Input Biaya Operasional & Gaji</h4>
+                        <svg class="w-6 h-6 transform transition-transform -rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    <div class="accordion-content open p-4 pt-0">
+                        <form id="expense-form" class="space-y-4">
+                            <input type="hidden" id="editing-expense-id">
+                            <div>
+                                <label for="expense-date" class="block text-sm font-medium text-gray-400 mb-1">Tanggal Pengeluaran</label>
+                                <input type="date" id="expense-date" required class="w-full bg-gray-700 border-gray-600 rounded-lg px-3 py-2">
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="operational-cost" class="block text-sm font-medium text-gray-400 mb-1">Biaya Operasional</label>
+                                    <input type="number" id="operational-cost" placeholder="0" class="w-full bg-gray-700 border-gray-600 rounded-lg px-3 py-2">
+                                </div>
+                                 <div>
+                                    <label for="salary-cost" class="block text-sm font-medium text-gray-400 mb-1">Gaji Karyawan</label>
+                                    <input type="number" id="salary-cost" placeholder="0" class="w-full bg-gray-700 border-gray-600 rounded-lg px-3 py-2">
+                                </div>
+                            </div>
+                            <div class="flex gap-4">
+                                <button type="submit" id="expense-submit-btn" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg btn-3d">Simpan Pengeluaran</button>
+                                <button type="button" id="expense-cancel-edit-btn" class="hidden w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg btn-3d">Batal Edit</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <div class="bg-gray-900/50 rounded-lg">
+                    <button class="accordion-toggle w-full flex justify-between items-center p-4 text-left">
+                        <h4 class="text-lg font-semibold text-gray-300">Ringkasan Keuntungan</h4>
+                        <svg class="w-6 h-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    <div class="accordion-content p-4 pt-0">
+                        <div class="space-y-4 text-gray-300">
+                             <div class="p-3 bg-gray-700/50 rounded-lg border-l-4 border-yellow-400">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-semibold">Modal Awal (Otomatis)</span>
+                                    <span id="report-initial-capital" class="font-bold text-lg text-yellow-300">Rp 0</span>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div class="bg-gray-700/50 p-3 rounded-lg">
+                                    <label class="block text-sm font-medium text-gray-400">Keuntungan Perminggu</label>
+                                    <p id="report-profit-weekly" class="text-lg font-bold text-green-300">Rp 0</p>
+                                </div>
+                                <div class="bg-gray-700/50 p-3 rounded-lg">
+                                    <label class="block text-sm font-medium text-gray-400">Keuntungan Perbulan</label>
+                                    <p id="report-profit-monthly" class="text-lg font-bold text-green-300">Rp 0</p>
+                                </div>
+                                <div class="bg-red-900/30 p-3 rounded-lg">
+                                    <label class="block text-sm font-medium text-red-300">Biaya Operasional</label>
+                                    <p id="report-operational-cost" class="text-lg font-bold text-red-200">Rp 0</p>
+                                </div>
+                                <div class="bg-red-900/30 p-3 rounded-lg">
+                                    <label class="block text-sm font-medium text-red-300">Gaji Karyawan</label>
+                                    <p id="report-salary-cost" class="text-lg font-bold text-red-200">Rp 0</p>
+                                </div>
+                            </div>
+                             <div class="p-4 bg-gray-900 rounded-lg border border-green-500 mt-4">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold text-lg">TOTAL KEUNTUNGAN BERSIH</span>
+                                    <span id="report-net-profit" class="font-bold text-2xl text-green-400">Rp 0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-900/50 p-4 rounded-lg">
+                    <h4 class="text-lg font-semibold mb-4 text-gray-300">Riwayat Pengeluaran</h4>
+                    <div class="max-h-64 overflow-y-auto vertical-scrollbar pr-2">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="expense-history-container">
+                        </div>
+                    </div>
+                </div>
+            </div>
+             <div class="flex justify-end pt-6 flex-shrink-0">
+                <button type="button" class="close-modal-btn btn-3d bg-gray-600 hover:bg-gray-700 font-semibold py-2 px-6 rounded-lg">Tutup</button>
+            </div>
+        </div>
+    </div>
+    <div id="import-modal" class="modal-backdrop hidden">
+        <div class="modal-content bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-lg">
+            <h3 class="text-xl font-bold text-yellow-400 mb-4">Impor Data dari CSV</h3>
+            <div class="space-y-4">
+                <a href="#" id="download-template-btn" class="w-full block text-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg btn-3d">Unduh Template CSV</a>
+                <div id="drop-area" class="p-10 text-center rounded-lg">
+                    <p class="text-gray-400">Seret & Lepaskan File CSV di Sini</p>
+                    <p class="text-gray-500 text-sm my-2">atau</p>
+                    <input type="file" id="file-input" class="hidden" accept=".csv">
+                    <label for="file-input" class="cursor-pointer text-purple-400 hover:text-purple-300 font-semibold">Pilih File</label>
+                </div>
+                <p id="file-name" class="text-center text-gray-500"></p>
+            </div>
+             <div class="flex justify-end gap-4 pt-6">
+                <button type="button" class="close-modal-btn btn-3d bg-gray-600 hover:bg-gray-700 font-semibold py-2 px-6 rounded-lg">Tutup</button>
+                <button type="button" id="import-csv-btn" class="btn-3d bg-yellow-600 hover:bg-yellow-700 font-semibold py-2 px-6 rounded-lg" disabled>Impor Sekarang</button>
+            </div>
+        </div>
+    </div>
+    <div id="pin-modal" class="modal-backdrop hidden z-50">
+        <form id="pin-form" class="modal-content bg-gray-800 rounded-lg shadow-2xl p-8 w-full max-w-md text-center">
+            <h3 id="pin-title" class="text-xl font-bold text-purple-400 mb-4">Masukkan PIN</h3>
+            <input type="password" id="pin-input-field" inputmode="numeric" class="w-full text-center text-3xl tracking-[1em] bg-gray-700 border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none mb-6" required>
+            <div class="flex gap-4">
+                 <button type="button" id="pin-cancel-button" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg btn-3d">Batal</button>
+                 <button type="submit" id="pin-submit-button" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg btn-3d">OK</button>
+            </div>
+        </form>
+    </div>
+    <div id="branch-pin-modal" class="modal-backdrop hidden z-50">
+        <form id="branch-pin-form" class="modal-content bg-gray-800 rounded-xl shadow-2xl p-8 w-full max-w-md text-center border-2 border-purple-500">
+            <h3 id="branch-pin-title" class="text-xl font-bold text-purple-400 mb-4">Masukkan PIN Cabang</h3>
+            <input type="password" id="branch-pin-input" inputmode="numeric" maxlength="4" placeholder="••••" class="w-full text-center text-3xl bg-gray-700 border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none mb-6" required>
+            <div class="flex gap-4">
+                 <button type="button" id="branch-pin-cancel-btn" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg btn-3d">Batal</button>
+                 <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg btn-3d">OK</button>
+            </div>
+        </form>
+    </div>
+    <div id="permanent-users-modal" class="modal-backdrop hidden">
+        <div class="modal-content bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-lg max-h-[85vh] flex flex-col">
+            <h3 class="text-2xl font-bold text-orange-400 mb-4 flex-shrink-0">Daftar Pengguna Tetap</h3>
+            <form id="add-user-form" class="flex gap-2 mb-4 flex-shrink-0">
+                <input type="text" id="new-user-name" placeholder="Nama pengguna baru" class="flex-grow bg-gray-700 border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none" required>
+                <button type="submit" class="btn-3d bg-orange-600 hover:bg-orange-700 text-white font-semibold py-2 px-4 rounded-lg">Tambah</button>
+            </form>
+            <div id="permanent-users-list" class="flex-grow overflow-y-auto vertical-scrollbar pr-2 space-y-2"></div>
+            <div class="flex justify-end pt-6 flex-shrink-0">
+                <button type="button" class="close-modal-btn btn-3d bg-gray-600 hover:bg-gray-700 font-semibold py-2 px-6 rounded-lg">Tutup</button>
+            </div>
+        </div>
+    </div>
+    <div id="branch-settings-modal" class="modal-backdrop hidden">
+        <div class="modal-content bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-lg max-h-[85vh] flex flex-col">
+            <h3 class="text-2xl font-bold text-lime-400 mb-6 flex-shrink-0">Pengaturan Nama Cabang</h3>
+            <div id="branch-list-container" class="flex-grow overflow-y-auto vertical-scrollbar pr-2 space-y-2 mb-4"></div>
+            <form id="add-branch-form" class="flex-shrink-0 flex gap-2 border-t border-gray-700 pt-4">
+                <input type="text" id="new-branch-name" placeholder="Nama cabang baru" class="flex-grow bg-gray-700 border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-lime-500 focus:outline-none" required>
+                <button type="submit" class="btn-3d bg-lime-600 hover:bg-lime-700 text-white font-semibold py-2 px-4 rounded-lg">Tambah</button>
+            </form>
+            <div class="flex justify-end pt-6 flex-shrink-0">
+                <button type="button" class="close-modal-btn btn-3d bg-gray-600 hover:bg-gray-700 font-semibold py-2 px-6 rounded-lg">Tutup</button>
+            </div>
+        </div>
+    </div>
+     <div id="pin-settings-modal" class="modal-backdrop hidden">
+        <div class="modal-content bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-lg max-h-[85vh] flex flex-col">
+            <h3 class="text-2xl font-bold text-yellow-400 mb-6 flex-shrink-0">Pengaturan PIN</h3>
+            <form id="pin-settings-form" class="space-y-4 flex-grow overflow-y-auto vertical-scrollbar pr-2">
+                <div class="p-4 rounded-lg bg-gray-700/50">
+                    <label for="user-entry-pin-input" class="block text-sm font-medium text-gray-300 mb-1">PIN Masuk Pengguna (4 Digit)</label>
+                    <input type="password" id="user-entry-pin-input" class="w-full bg-gray-600 border-gray-500 rounded-lg px-3 py-2" maxlength="4" required>
+                </div>
+                <div class="p-4 rounded-lg bg-gray-700/50">
+                    <h4 class="text-lg font-semibold mb-2">PIN Cabang (4 Digit)</h4>
+                    <div id="branch-pin-settings-container" class="space-y-2"></div>
+                </div>
+                 <div class="pt-4 flex justify-end">
+                    <button type="submit" class="btn-3d bg-yellow-600 hover:bg-yellow-700 font-semibold py-2 px-6 rounded-lg">Simpan PIN</button>
+                </div>
+            </form>
+            <div class="flex justify-end pt-6 flex-shrink-0">
+                <button type="button" class="close-modal-btn btn-3d bg-gray-600 hover:bg-gray-700 font-semibold py-2 px-6 rounded-lg">Tutup</button>
+            </div>
+        </div>
+    </div>
+    <div id="notification-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center pt-20 opacity-0 pointer-events-none z-50">
+        <div id="notification-content" class="bg-white text-gray-800 p-4 rounded-lg shadow-lg max-w-sm text-center transform -translate-y-20 content-transition">
+            <p id="notification-message"></p>
+        </div>
+    </div>
+    <div id="delete-confirm-modal" class="modal-backdrop hidden z-50">
+        <div class="modal-content bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-md">
+            <h3 class="text-xl font-bold text-red-400">Konfirmasi Hapus</h3>
+            <p id="delete-confirm-message" class="text-gray-300 mt-2 mb-6">Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat diurungkan.</p>
+            <div class="flex justify-end gap-4">
+                <button id="cancel-delete-btn" class="btn-3d bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-6 rounded-lg">Batal</button>
+                <button id="confirm-delete-btn" class="btn-3d bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-6 rounded-lg">Hapus</button>
+            </div>
+        </div>
+    </div>
+    <div id="delete-all-confirm-modal" class="modal-backdrop hidden">
+        <div class="modal-content bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-md">
+            <h3 class="text-xl font-bold text-red-500">PERINGATAN: Hapus Semua Data Ruangan?</h3>
+            <p class="text-gray-300 mt-2 mb-6">Anda akan menghapus **SEMUA** data di ruangan ini untuk **SEMUA PENGGUNA**. Tindakan ini **TIDAK DAPAT DIURUNGKAN**.</p>
+            <div class="flex justify-end gap-4">
+                <button id="cancel-delete-all-btn" class="btn-3d bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-6 rounded-lg">Batal</button>
+                <button id="confirm-delete-all-btn" class="btn-3d bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-6 rounded-lg">Ya, Hapus Semua</button>
+            </div>
+        </div>
+    </div>
+    <div id="trash-modal" class="modal-backdrop hidden">
+        <div class="modal-content bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-4xl max-h-[85vh] flex flex-col">
+            <h3 class="text-2xl font-bold text-blue-400 mb-6 flex-shrink-0">Tong Sampah</h3>
+            <div id="trash-items-container" class="flex-grow overflow-y-auto vertical-scrollbar pr-4 space-y-4"></div>
+            <div class="flex justify-end pt-6 flex-shrink-0">
+                <button type="button" class="close-modal-btn btn-3d bg-gray-600 hover:bg-gray-700 font-semibold py-2 px-6 rounded-lg">Tutup</button>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp, doc, deleteDoc, updateDoc, setDoc, getDoc, writeBatch, getDocs, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- PWA Service Worker Registration ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').then(registration => {
+                    console.log('SW registered: ', registration.scope);
+                }, err => {
+                    console.log('SW registration failed: ', err);
+                });
+            });
+        }
+
+        // --- Firebase Setup ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyB6NiW14iWhlhIRE8ViXYEOS5SMvGd2Yq4",
+            authDomain: "database-parfum-fd2f8.firebaseapp.com",
+            projectId: "database-parfum-fd2f8",
+            storageBucket: "database-parfum-fd2f8.appspot.com",
+            messagingSenderId: "461710865000",
+            appId: "1:461710865000:web:edaafba897a9445e6c01dd"
+        };
+        
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- Credentials & Initial Settings ---
+        let ROOM_ENTRY_PIN = '1973';
+        const NAV_LOCK_PIN = '197385';
+        const FIXED_ROOM_ID = "endayshebocah";
+        let branchPins = {};
+        let branchNames = [];
+        const branchColors = ['bg-purple-600', 'bg-blue-600', 'bg-teal-600', 'bg-green-600', 'bg-yellow-600', 'bg-orange-600', 'bg-red-600'];
+
+        // --- Global State ---
+        let userId = null, isAuthReady = false, currentUserName = null, currentUserBranch = null;
+        let presenceInterval = null;
+        let unsubscribeFromTransactions, unsubscribeFromExpenses, unsubscribeFromPresence, unsubscribeFromPermanentUsers, unsubscribeFromPins, unsubscribeFromBranchNames, unsubscribeFromPerfumeImages, unsubscribeFromCustomers;
+        let allTransactions = [], allExpenses = [], onlineUsers = [], uniquePerfumeNames = [], perfumeImages = {}, allCustomers = [];
+        let itemToPermanentlyDelete = { id: null, type: null, name: '', action: null };
+        let priceSettings = {};
+        let actionToPerformAfterPin = null;
+        let isNavLocked = true, isGloballyUnlocked = false; 
+        let unlockedBranches = {}; 
+        let parsedCsvData = null;
+        let actionAfterBranchPin = null;
+        let temporaryTransactionData = null;
+        let temporaryCustomerData = { name: '', whatsapp: '', notes: '' };
+        let currentOpenModal = null;
+        
+        // --- DOM Elements ---
+        const menuButton = document.getElementById('menu-button'), dropdownMenu = document.getElementById('dropdown-menu');
+        const categoriesContainer = document.getElementById('perfume-categories-container');
+        const toggleFormBtn = document.getElementById('toggle-form-btn'), formContentWrapper = document.getElementById('form-content-wrapper');
+        const formToggleIcon = document.getElementById('form-toggle-icon');
+        const navLockButton = document.getElementById('nav-lock-button');
+        const navLockIcon = document.getElementById('nav-lock-icon');
+        const perfumeInput = document.getElementById('wangi-parfum');
+        const suggestionsContainer = document.getElementById('autocomplete-suggestions');
+        const lobbyScreen = document.getElementById('lobby-screen'), appContainer = document.getElementById('app-container');
+        const joinRoomForm = document.getElementById('join-room-form'), adminLoginBtn = document.getElementById('admin-login-btn');
+        const userSelect = document.getElementById('user-select');
+        const branchSelectContainer = document.getElementById('branch-select-container');
+        const branchSelectLobby = document.getElementById('branch-select-lobby');
+        const roomIdDisplay = document.getElementById('room-id-display');
+        const leaveRoomButton = document.getElementById('leave-room-button'), onlineUsersSection = document.getElementById('online-users-section');
+        const mainContentArea = document.getElementById('main-content');
+        const pinModal = document.getElementById('pin-modal');
+        const pinForm = document.getElementById('pin-form');
+        const pinInputField = document.getElementById('pin-input-field');
+        const pinTitle = document.getElementById('pin-title');
+        const customerNameInput = document.getElementById('nama-pembeli');
+        
+        // --- SVG Lock Icons ---
+        const lockIconPaths = {
+            unlocked: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v3m-6 2h12a2 2 0 002-2v-7a2 2 0 00-2-2H5a2 2 0 00-2 2v7a2 2 0 002 2z" />`,
+            locked: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />`
+        };
+
+        // --- Utility Functions ---
+        const formatRupiah = (number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(number);
+        const todayString = () => new Date().toISOString().slice(0, 10);
+
+        function showModal(modal) {
+            if (currentOpenModal) hideModal(currentOpenModal);
+            currentOpenModal = modal;
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.add('visible');
+                if (modal === pinModal) pinInputField.focus();
+            }, 10);
+        }
+
+        function hideModal(modal) {
+            if (!modal) return;
+            modal.classList.remove('visible');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                if (currentOpenModal === modal) currentOpenModal = null;
+            }, 300);
+        }
+        
+        function showNotification(message, isError = false) {
+            const notificationModal = document.getElementById('notification-modal');
+            const notificationContent = document.getElementById('notification-content');
+            const notificationMessage = document.getElementById('notification-message');
+            notificationMessage.textContent = message;
+            notificationContent.className = `p-4 rounded-lg shadow-lg max-w-sm text-center transform content-transition ${isError ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`;
+            notificationModal.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
+            notificationContent.classList.remove('-translate-y-20');
+            setTimeout(() => {
+                notificationModal.classList.add('opacity-0');
+                notificationContent.classList.add('-translate-y-20');
+                setTimeout(() => notificationModal.classList.add('hidden', 'pointer-events-none'), 300);
+            }, 4000);
+        }
+
+        // --- Initialization & Authentication ---
+        onAuthStateChanged(auth, async (user) => {
+            const joinRoomButton = document.querySelector('#join-room-form button[type="submit"]');
+            if (user) {
+                userId = user.uid; isAuthReady = true;
+                userSelect.disabled = false; if(joinRoomButton) joinRoomButton.disabled = false; adminLoginBtn.disabled = false;
+                const branchNamesRefLobby = doc(db, `perfume_rooms/${FIXED_ROOM_ID}/config/branch_names`);
+                onSnapshot(branchNamesRefLobby, (docSnap) => {
+                    let lobbyBranches = (docSnap.exists() && docSnap.data().names) ? docSnap.data().names : ["Cabang A", "Cabang B", "Cabang C", "Cabang D", "Cabang E"];
+                    branchNames = lobbyBranches;
+                    branchSelectLobby.innerHTML = '<option value="">-- Pilih Cabang --</option>';
+                    lobbyBranches.forEach(name => branchSelectLobby.innerHTML += `<option value="${name}">${name}</option>`);
+                });
+                const usersRef = collection(db, `perfume_rooms/${FIXED_ROOM_ID}/permanent_users`);
+                onSnapshot(usersRef, (snapshot) => {
+                    userSelect.innerHTML = '<option value="">-- Pilih Pengguna --</option>';
+                    snapshot.docs.sort((a,b) => a.data().name.localeCompare(b.data().name)).forEach(doc => userSelect.innerHTML += `<option value="${doc.data().name}">${doc.data().name}</option>`);
+                }, (error) => {
+                     console.error("Firebase permission error:", error); showNotification("Gagal memuat daftar pengguna.", true);
+                     userSelect.innerHTML = '<option value="">Gagal memuat</option>';
+                });
+            } else {
+                try { await signInAnonymously(auth); } catch (error) { console.error("Anonymous sign-in failed:", error); }
+            }
+        });
+
+        // --- Navigation Lock & Admin Logic ---
+        function updateNavLockState() {
+            const lockableActions = document.querySelectorAll('.lockable-action');
+            if (isNavLocked) {
+                navLockIcon.innerHTML = lockIconPaths.locked;
+                menuButton.disabled = true; menuButton.classList.add('opacity-50', 'cursor-not-allowed');
+                lockableActions.forEach(btn => btn.classList.add('opacity-50', 'cursor-not-allowed'));
+                dropdownMenu.classList.add('hidden');
+            } else {
+                navLockIcon.innerHTML = lockIconPaths.unlocked;
+                menuButton.disabled = false; menuButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                lockableActions.forEach(btn => btn.classList.remove('opacity-50', 'cursor-not-allowed'));
+            }
+        }
+        navLockButton.addEventListener('click', () => {
+            if (isNavLocked) {
+                showPinModal("Masukkan PIN Admin", 6, (pin) => {
+                    if (pin === NAV_LOCK_PIN) { isNavLocked = false; isGloballyUnlocked = true; updateNavLockState(); showNotification("Akses Penuh Admin Dibuka.", false); } 
+                    else { showNotification("PIN Admin salah.", true); }
+                });
+            } else { isNavLocked = true; isGloballyUnlocked = false; unlockedBranches = {}; updateNavLockState(); showNotification("Navigasi dikunci.", false); }
+        });
+
+        // --- Presence Logic ---
+        async function updatePresence() {
+            if (userId && currentUserName) {
+                const presenceRef = doc(db, `perfume_rooms/${FIXED_ROOM_ID}/presence/${userId}`);
+                try { await setDoc(presenceRef, { name: currentUserName, last_seen: serverTimestamp() }); } catch (error) { console.error("Failed to update presence: ", error); }
+            }
+        }
+        async function goOffline() {
+             if (userId) {
+                clearInterval(presenceInterval); presenceInterval = null;
+                const presenceRef = doc(db, `perfume_rooms/${FIXED_ROOM_ID}/presence/${userId}`);
+                try { await deleteDoc(presenceRef); } catch (error) {}
+            }
+        }
+        function renderOnlineUsers(users) {
+            onlineUsers = users;
+            const uniqueNames = [...new Set(users.map(u => u.name))];
+            if (uniqueNames.length > 0) {
+                const userHtml = uniqueNames.map(name => `<span class="bg-green-500/20 text-green-300 font-semibold px-2 py-0.5 rounded-full">${name}</span>`).join('');
+                onlineUsersSection.innerHTML = `<span class="text-gray-400 font-semibold">Online:</span> ${userHtml}`;
+            } else { onlineUsersSection.innerHTML = `<span class="text-gray-500">Offline</span>`; }
+        }
+        window.addEventListener('beforeunload', goOffline);
+
+        // --- Collaboration & App Flow Logic ---
+        function enterAppView(id, name, branch, isAdmin = false) {
+            currentUserName = name; currentUserBranch = branch; roomIdDisplay.textContent = id;
+            lobbyScreen.classList.add('hidden'); appContainer.classList.remove('hidden');
+            isNavLocked = !isAdmin; isGloballyUnlocked = isAdmin; unlockedBranches = {}; 
+            updateNavLockState(); loadPriceSettings(); setupRealtimeListeners(); updatePresence(); 
+            presenceInterval = setInterval(updatePresence, 45000); resetForm();
+        }
+        function leaveAppView() {
+            goOffline();
+            [unsubscribeFromTransactions, unsubscribeFromExpenses, unsubscribeFromPresence, unsubscribeFromPermanentUsers, unsubscribeFromPins, unsubscribeFromBranchNames, unsubscribeFromPerfumeImages, unsubscribeFromCustomers].forEach(unsub => unsub && unsub());
+            appContainer.classList.add('hidden'); lobbyScreen.classList.remove('hidden');
+            isGloballyUnlocked = false; currentUserName = null; currentUserBranch = null;
+            branchSelectContainer.classList.add('hidden');
+        }
+        userSelect.addEventListener('change', () => branchSelectContainer.classList.toggle('hidden', !userSelect.value));
+        joinRoomForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userName = userSelect.value, branch = branchSelectLobby.value;
+            if (!userName || !branch) { showNotification("Silakan pilih nama dan cabang Anda.", true); return; }
+            showPinModal(`Masukkan PIN Ruangan`, 4, (pin) => {
+                if(pin === ROOM_ENTRY_PIN) { enterAppView(FIXED_ROOM_ID, userName, branch, false); } 
+                else { showNotification("PIN Ruangan Salah.", true); }
+            });
+        });
+        adminLoginBtn.addEventListener('click', () => {
+            showPinModal("Masukkan PIN Admin Utama", 6, (pin) => {
+                if (pin === NAV_LOCK_PIN) { enterAppView(FIXED_ROOM_ID, "Admin Utama", null, true); } 
+                else { showNotification("PIN Admin Salah.", true); }
+            });
+        });
+        function showPinModal(title, maxLength, callback) {
+            pinTitle.textContent = title; pinInputField.value = '';
+            pinInputField.maxLength = maxLength; pinInputField.placeholder = '•'.repeat(maxLength);
+            actionToPerformAfterPin = callback;
+            showModal(pinModal);
+        }
+        pinForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (actionToPerformAfterPin) { actionToPerformAfterPin(pinInputField.value); }
+            hideModal(pinModal); actionToPerformAfterPin = null;
+        });
+        pinModal.querySelector('#pin-cancel-button').addEventListener('click', () => { hideModal(pinModal); actionToPerformAfterPin = null; });
+        leaveRoomButton.addEventListener('click', leaveAppView);
+
+        // --- Core App Functions ---
+        document.getElementById('tanggal').valueAsDate = new Date();
+        document.getElementById('expense-date').valueAsDate = new Date();
+        
+        function resetForm() {
+            document.getElementById('perfume-form').reset();
+            document.getElementById('tanggal').valueAsDate = new Date();
+            document.getElementById('editing-id').value = '';
+            document.getElementById('form-title').textContent = 'Input Transaksi Baru';
+            document.getElementById('submit-btn').textContent = 'Bayar dan Simpan Transaksi';
+            document.getElementById('cancel-edit-btn').classList.add('hidden');
+            document.getElementById('customer-section-container').classList.add('hidden');
+            document.querySelector('input[name="transaction_type"][value="masuk"]').checked = true;
+            
+            if (isGloballyUnlocked) {
+                const firstBranch = branchNames[0] || '';
+                document.getElementById('cabang').value = firstBranch;
+                document.getElementById('form-selected-branch-display').textContent = firstBranch;
+                document.getElementById('form-branch-button').disabled = false;
+                document.getElementById('form-branch-button').classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                document.getElementById('cabang').value = currentUserBranch;
+                document.getElementById('form-selected-branch-display').textContent = currentUserBranch;
+                document.getElementById('form-branch-button').disabled = true;
+                document.getElementById('form-branch-button').classList.add('opacity-50', 'cursor-not-allowed');
+            }
+            resetCustomerForm();
+        }
+
+        async function saveTransaction(data) {
+            const collectionPath = `perfume_rooms/${FIXED_ROOM_ID}/transactions`;
+            try {
+                const dataToSave = { ...data };
+                if (data.editingId) {
+                    const docId = data.editingId; delete dataToSave.editingId;
+                    await updateDoc(doc(db, collectionPath, docId), dataToSave);
+                    showNotification("Data berhasil diperbarui!");
+                } else {
+                    delete dataToSave.editingId;
+                    await addDoc(collection(db, collectionPath), { ...dataToSave, createdAt: serverTimestamp(), isDeleted: false });
+                    showNotification("Data berhasil disimpan!");
+                }
+                resetForm();
+            } catch (error) { console.error("Error writing document: ", error); }
+        }
+        const isBranchTemporarilyUnlocked = (branchName) => unlockedBranches[branchName] === todayString();
+
+        document.getElementById('perfume-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!isAuthReady) { showNotification("Authentication not ready.", true); return; }
+            
+            const wangi = perfumeInput.value.trim();
+            const jumlah = parseInt(document.getElementById('jumlah').value) || 0;
+            const tanggal = document.getElementById('tanggal').value;
+            const cabang = document.getElementById('cabang').value;
+            const editingId = document.getElementById('editing-id').value;
+            const jenis = document.querySelector('input[name="transaction_type"]:checked').value;
+            
+            if (!wangi || jumlah <= 0) { showNotification("Data tidak valid.", true); return; }
+
+            temporaryTransactionData = {
+                tanggal, wangi, cabang, editingId,
+                masuk: jenis === 'masuk' ? jumlah : 0,
+                keluar: jenis === 'keluar' ? jumlah : 0,
+                lastEditor: currentUserName 
+            };
+            
+            if (jenis === 'masuk') {
+                saveTransaction(temporaryTransactionData);
+                temporaryTransactionData = null;
+            } else {
+                const customerName = customerNameInput.value.trim();
+                if (!customerName) { showNotification("Nama pembeli harus diisi.", true); return; }
+
+                const customerId = document.getElementById('customer-id').value;
+                const customerData = {
+                    name: customerName,
+                    whatsapp: document.getElementById('whatsapp-pembeli').value.trim(),
+                    notes: document.getElementById('catatan-pembeli').value.trim(),
+                    lastEditedBy: currentUserName
+                };
+
+                let finalCustomerId = customerId;
+                if (finalCustomerId) {
+                    await updateDoc(doc(db, `perfume_rooms/${FIXED_ROOM_ID}/customers`, finalCustomerId), customerData);
+                } else {
+                    const newCustomerRef = await addDoc(collection(db, `perfume_rooms/${FIXED_ROOM_ID}/customers`), { ...customerData, createdAt: serverTimestamp() });
+                    finalCustomerId = newCustomerRef.id;
+                }
+
+                temporaryTransactionData.customerId = finalCustomerId;
+                temporaryTransactionData.namaPembeli = customerName;
+
+                const totalPrice = getHarga('hargaJual', jumlah) * jumlah;
+                document.getElementById('payment-total-amount').textContent = formatRupiah(totalPrice);
+                document.getElementById('payment-total-amount').dataset.rawPrice = totalPrice;
+                showModal(document.getElementById('payment-modal'));
+            }
+        });
+        
+        document.getElementById('branch-pin-form').addEventListener('submit', (e) => { e.preventDefault(); if(actionAfterBranchPin) { actionAfterBranchPin(document.getElementById('branch-pin-input').value); } });
+        document.getElementById('branch-pin-modal').querySelector('#branch-pin-cancel-btn').addEventListener('click', () => { hideModal(document.getElementById('branch-pin-modal')); actionAfterBranchPin = null; });
+
+        function renderData(transactionsToRender) {
+            uniquePerfumeNames = [...new Set(allTransactions.map(tx => tx.wangi))].sort();
+            categoriesContainer.innerHTML = '';
+
+            const groupedByCabang = transactionsToRender.reduce((acc, item) => {
+                const branch = item.cabang || 'Lainnya';
+                acc[branch] = acc[branch] || []; acc[branch].push(item); return acc;
+            }, {});
+
+            if (Object.keys(groupedByCabang).length === 0) {
+                categoriesContainer.innerHTML = `<p class="text-gray-500 text-center p-8">Tidak ada data untuk ditampilkan.</p>`;
+                return;
+            }
+
+            Object.keys(groupedByCabang).sort().forEach((cabang, index) => {
+                const branchItems = groupedByCabang[cabang];
+                const branchDiv = document.createElement('div');
+                branchDiv.className = 'bg-gray-900/50 rounded-xl shadow-lg overflow-hidden border-2 border-purple-500 mb-6';
+                let wangiHtml = '';
+                const groupedByWangi = branchItems.reduce((acc, item) => {
+                    acc[item.wangi] = acc[item.wangi] || []; acc[item.wangi].push(item); return acc;
+                }, {});
+
+                for (const wangi of Object.keys(groupedByWangi).sort()) {
+                    const items = groupedByWangi[wangi];
+                    items.sort((a, b) => new Date(b.createdAt?.toDate() || b.tanggal) - new Date(a.createdAt?.toDate() || a.tanggal));
+                    const totalMasuk = items.reduce((sum, item) => sum + item.masuk, 0);
+                    const totalKeluar = items.reduce((sum, item) => sum + item.keluar, 0);
+                    const stokSaatIni = totalMasuk - totalKeluar;
+                    const masukCardsHTML = items.filter(i => i.masuk > 0).map(item => createTransactionCard(item)).join('') || `<div class="flex items-center justify-center h-full w-full text-gray-500 p-4">Belum ada riwayat stok masuk.</div>`;
+                    const keluarCardsHTML = items.filter(i => i.keluar > 0).map(item => createTransactionCard(item)).join('') || `<div class="flex items-center justify-center h-full w-full text-gray-500 p-4">Belum ada riwayat penjualan.</div>`;
+                    wangiHtml += `<div class="bg-gray-950 rounded-xl shadow-lg overflow-hidden border-2 border-purple-500"><button class="accordion-toggle w-full flex justify-between items-center p-4 text-left bg-purple-900/30 hover:bg-purple-900/50"><span class="text-xl font-bold">${wangi}</span><div class="text-right"><span class="font-bold text-xl">${stokSaatIni} ml</span><div class="text-xs text-gray-300">Stok Saat Ini</div></div></button><div class="accordion-content"><div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-black bg-opacity-20"><div><h4 class="font-semibold text-gray-300 mb-2 text-center text-green-400">Riwayat Masuk (${totalMasuk} ml)</h4><div class="h-64 overflow-y-auto vertical-scrollbar space-y-3 p-2 bg-black/40 rounded-lg">${masukCardsHTML}</div></div><div><h4 class="font-semibold text-gray-300 mb-2 text-center text-red-400">Riwayat Keluar (${totalKeluar} ml)</h4><div class="h-64 overflow-y-auto vertical-scrollbar space-y-3 p-2 bg-black/40 rounded-lg">${keluarCardsHTML}</div></div></div></div></div>`;
+                }
+                const headerColor = branchColors[index % branchColors.length];
+                branchDiv.innerHTML = `<div class="p-4 text-2xl font-bold text-center ${headerColor} text-white">${cabang}</div><div class="p-4 space-y-4">${wangiHtml}</div>`;
+                categoriesContainer.appendChild(branchDiv);
+            });
+            updateNavLockState();
+        }
+
+        function createTransactionCard(item) {
+            const isMasuk = item.masuk > 0;
+            const borderColor = isMasuk ? 'border-green-500' : 'border-red-500';
+            const quantity = isMasuk ? item.masuk : item.keluar;
+            const quantityColor = isMasuk ? 'text-green-400' : 'text-red-400';
+            const typeText = isMasuk ? 'Masuk' : 'Keluar';
+            const typeBg = isMasuk ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300';
+            const paymentStatusInfo = !isMasuk && item.paymentStatus === 'Belum Lunas' ? `<span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-500/20 text-yellow-300">Belum Lunas</span>` : '';
+            const dateString = new Date(item.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+            const buyerString = !isMasuk && item.namaPembeli ? ` | Pembeli: <span class="font-semibold text-gray-200">${item.namaPembeli}</span>` : '';
+            const settleButtonHTML = !isMasuk && item.paymentStatus === 'Belum Lunas' ? `<button class="settle-payment-btn lockable-action p-2 bg-green-600/80 hover:bg-green-600 rounded-full btn-3d" data-id="${item.id}" title="Lunasi Pembayaran"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 pointer-events-none" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg></button>` : '';
+            const actionButtonsHTML = `<div class="flex gap-2">${settleButtonHTML}<button class="edit-btn lockable-action p-2 bg-yellow-600/80 hover:bg-yellow-600 rounded-full btn-3d" data-id="${item.id}" title="Edit"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L14.732 3.732z" /></svg></button><button class="delete-btn lockable-action p-2 bg-red-600/80 hover:bg-red-600 rounded-full btn-3d" data-id="${item.id}" data-type="transaction" title="Hapus"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></div>`;
+            return `<div class="bg-gray-800 p-3 rounded-lg border-l-4 ${borderColor} flex flex-col justify-between shadow-md hover:bg-gray-700/80 transition-all duration-200"><div class="flex-grow"><div class="flex justify-between items-start"><div><div class="flex items-center gap-2"><span class="px-2 py-1 text-xs font-semibold rounded-full ${typeBg}">${typeText}</span>${paymentStatusInfo}</div><p class="text-xl font-bold ${quantityColor} mt-1">${quantity} <span class="text-base font-normal text-gray-400">ml</span></p></div>${actionButtonsHTML}</div><p class="text-xs text-gray-500 mt-2">${dateString}${buyerString}</p></div></div>`;
+        }
+
+        async function loadPriceSettings() {
+            const settingsRef = doc(db, `perfume_rooms/${FIXED_ROOM_ID}/config/prices`);
+            const docSnap = await getDoc(settingsRef);
+            priceSettings = docSnap.exists() ? docSnap.data() : {};
+        }
+
+        async function setupRealtimeListeners() {
+            if (!isAuthReady) return;
+            // Transactions Listener
+            if (unsubscribeFromTransactions) unsubscribeFromTransactions();
+            const transQuery = query(collection(db, `perfume_rooms/${FIXED_ROOM_ID}/transactions`));
+            unsubscribeFromTransactions = onSnapshot(transQuery, (snapshot) => {
+                allTransactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const transactionsToDisplay = allTransactions.filter(tx => !tx.isDeleted);
+                if (isGloballyUnlocked) { renderData(transactionsToDisplay); } 
+                else { renderData(transactionsToDisplay.filter(tx => tx.cabang === currentUserBranch)); }
+            });
+            // Expenses Listener
+            if (unsubscribeFromExpenses) unsubscribeFromExpenses();
+            const expenseQuery = query(collection(db, `perfume_rooms/${FIXED_ROOM_ID}/expenses`));
+            unsubscribeFromExpenses = onSnapshot(expenseQuery, (snapshot) => {
+                allExpenses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data()}));
+                renderExpenseHistory(allExpenses);
+            });
+            // Presence Listener
+            if(unsubscribeFromPresence) unsubscribeFromPresence();
+            const presenceQuery = query(collection(db, `perfume_rooms/${FIXED_ROOM_ID}/presence`));
+            unsubscribeFromPresence = onSnapshot(presenceQuery, (snapshot) => {
+                const now = Date.now();
+                const currentOnlineUsers = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()})).filter(user => user.last_seen && (now - user.last_seen.toDate().getTime()) < 60000); 
+                renderOnlineUsers(currentOnlineUsers);
+            });
+            // PINs Listener
+            if (unsubscribeFromPins) unsubscribeFromPins();
+            const pinsRef = doc(db, `perfume_rooms/${FIXED_ROOM_ID}/config/pins`);
+            unsubscribeFromPins = onSnapshot(pinsRef, (docSnap) => {
+                if (docSnap.exists()) { const pinData = docSnap.data(); ROOM_ENTRY_PIN = pinData.roomEntryPin || '1973'; branchPins = pinData.branchPins || {}; }
+            });
+            // Branch Names Listener
+            if(unsubscribeFromBranchNames) unsubscribeFromBranchNames();
+            const branchNamesRef = doc(db, `perfume_rooms/${FIXED_ROOM_ID}/config/branch_names`);
+            unsubscribeFromBranchNames = onSnapshot(branchNamesRef, (docSnap) => {
+                if (docSnap.exists()) { branchNames = docSnap.data().names || []; } 
+                else { branchNames = ["Cabang A", "Cabang B", "Cabang C", "Cabang D", "Cabang E"]; setDoc(branchNamesRef, { names: branchNames }); }
+                updateAllBranchUIs(); renderBranchSettings();
+            });
+            // Perfume Images Listener
+            if(unsubscribeFromPerfumeImages) unsubscribeFromPerfumeImages();
+            const imagesRef = doc(db, `perfume_rooms/${FIXED_ROOM_ID}/config/perfume_images`);
+            unsubscribeFromPerfumeImages = onSnapshot(imagesRef, (docSnap) => { perfumeImages = docSnap.exists() ? docSnap.data() : {}; });
+            // Customers Listener
+            if(unsubscribeFromCustomers) unsubscribeFromCustomers();
+            const customersQuery = query(collection(db, `perfume_rooms/${FIXED_ROOM_ID}/customers`));
+            unsubscribeFromCustomers = onSnapshot(customersQuery, (snapshot) => { allCustomers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); });
+        }
+        
+        function updateAllBranchUIs() {
+            const originalBranchSelect = document.getElementById('cabang');
+            originalBranchSelect.innerHTML = '';
+            branchNames.forEach(name => originalBranchSelect.innerHTML += `<option>${name}</option>`);
+            if (branchNames.length > 0) {
+                 const branchToSet = isGloballyUnlocked ? (branchNames[0] || '') : currentUserBranch;
+                 document.getElementById('form-selected-branch-display').textContent = branchToSet;
+                 originalBranchSelect.value = branchToSet;
+            }
+            document.getElementById('form-branch-options-container').innerHTML = branchNames.map(name => `<a href="#" class="form-branch-option block px-4 py-3 text-base text-white font-semibold bg-purple-900/30 rounded-lg hover:bg-purple-900/50" data-branch="${name}">${name}</a>`).join('');
+            document.getElementById('branch-reports-container').innerHTML = branchNames.map(name => `<a href="#" class="branch-report-btn lockable-action block px-4 py-3 text-base text-white font-semibold bg-cyan-600 rounded-lg hover:bg-cyan-700" data-branch="${name}">Laporan ${name}</a>`).join('');
+            document.getElementById('branch-pin-settings-container').innerHTML = branchNames.map((name, index) => `<div><label for="pin-cabang-${index}" class="block text-sm font-medium text-gray-400 mb-1">${name}</label><input type="password" id="pin-cabang-${index}" data-branch="${name}" class="w-full bg-gray-600 border-gray-500 rounded-lg px-3 py-2 branch-pin-input" maxlength="4"></div>`).join('');
+            const recapBranchFiltersHTML = branchNames.map(name => `<a href="#" class="recap-branch-option block px-4 py-3 text-base text-white font-semibold bg-purple-900/30 rounded-lg hover:bg-purple-900/50" data-branch="${name}">${name}</a>`).join('');
+            document.getElementById('recap-branch-options-container').innerHTML = `<a href="#" class="recap-branch-option block px-4 py-3 text-base text-white font-semibold bg-purple-900/50 rounded-lg hover:bg-purple-900/50" data-branch="semua">Semua Cabang</a>` + recapBranchFiltersHTML;
+            document.getElementById('recap-branch-button').dataset.value = 'semua';
+            document.getElementById('recap-selected-branch-display').textContent = 'Semua Cabang';
+        }
+
+        function performGembokProtectedAction(action) {
+            if (isGloballyUnlocked) { action(); return; }
+            showPinModal("Masukkan PIN Admin", 6, (pin) => {
+                 if (pin === NAV_LOCK_PIN) { action(); } 
+                 else { showNotification("PIN Admin salah. Aksi dibatalkan.", true); }
+            });
+        }
+        
+        function calculateAndDisplayReport(transactions, expenses, title) {
+            const activeTransactions = transactions.filter(tx => !tx.isDeleted);
+            const activeExpenses = expenses.filter(ex => !ex.isDeleted);
+            document.getElementById('report-modal-title').textContent = title;
+            const now = new Date(), oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            const incomingTransactions = activeTransactions.filter(tx => tx.masuk > 0);
+            const sales = activeTransactions.filter(tx => tx.keluar > 0);
+            const initialCapital = incomingTransactions.reduce((sum, tx) => sum + (tx.masuk * getHarga('hargaBeli', tx.masuk)), 0);
+            const weeklySales = sales.filter(s => new Date(s.tanggal) >= oneWeekAgo);
+            const monthlySales = sales.filter(s => new Date(s.tanggal) >= oneMonthAgo);
+            const weeklyProfit = weeklySales.reduce((sum, s) => sum + ((getHarga('hargaJual', s.keluar) - getHarga('hargaBeli', s.keluar)) * s.keluar), 0);
+            const monthlyProfit = monthlySales.reduce((sum, s) => sum + ((getHarga('hargaJual', s.keluar) - getHarga('hargaBeli', s.keluar)) * s.keluar), 0);
+            const totalProfit = sales.reduce((sum, s) => sum + ((getHarga('hargaJual', s.keluar) - getHarga('hargaBeli', s.keluar)) * s.keluar), 0);
+            const totalOperationalCost = activeExpenses.reduce((sum, exp) => sum + exp.operational, 0);
+            const totalSalaryCost = activeExpenses.reduce((sum, exp) => sum + exp.salary, 0);
+            const netProfit = totalProfit - totalOperationalCost - totalSalaryCost;
+            document.getElementById('report-initial-capital').textContent = formatRupiah(initialCapital);
+            document.getElementById('report-profit-weekly').textContent = formatRupiah(weeklyProfit);
+            document.getElementById('report-profit-monthly').textContent = formatRupiah(monthlyProfit);
+            document.getElementById('report-operational-cost').textContent = formatRupiah(totalOperationalCost);
+            document.getElementById('report-salary-cost').textContent = formatRupiah(totalSalaryCost);
+            document.getElementById('report-net-profit').textContent = formatRupiah(netProfit);
+            showModal(document.getElementById('report-modal'));
+        }
+
+        document.getElementById('open-settings-modal').addEventListener('click', (e) => { e.preventDefault(); performGembokProtectedAction(() => showModal(document.getElementById('settings-modal'))); });
+        document.getElementById('settings-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            priceSettings = {
+                '30ml': { hargaBeli: parseInt(document.getElementById('harga-beli-30').value) || 0, hargaJual: parseInt(document.getElementById('harga-jual-30').value) || 0 },
+                '50ml': { hargaBeli: parseInt(document.getElementById('harga-beli-50').value) || 0, hargaJual: parseInt(document.getElementById('harga-jual-50').value) || 0 },
+                '100ml': { hargaBeli: parseInt(document.getElementById('harga-beli-100').value) || 0, hargaJual: parseInt(document.getElementById('harga-jual-100').value) || 0 },
+                'default': { hargaBeli: parseInt(document.getElementById('harga-beli-default').value) || 0, hargaJual: parseInt(document.getElementById('harga-jual-default').value) || 0 }
+            };
+            const settingsRef = doc(db, `perfume_rooms/${FIXED_ROOM_ID}/config/prices`);
+            await setDoc(settingsRef, priceSettings);
+            showNotification("Pengaturan harga disimpan!"); hideModal(document.getElementById('settings-modal'));
+        });
+        document.getElementById('delete-all-data-btn').addEventListener('click', (e) => { e.preventDefault(); dropdownMenu.classList.add('hidden'); performGembokProtectedAction(() => showModal(document.getElementById('delete-all-confirm-modal'))); });
+        document.getElementById('confirm-delete-all-btn').addEventListener('click', async () => {
+            hideModal(document.getElementById('delete-all-confirm-modal'));
+            showNotification("Menghapus semua data...", false);
+            const batch = writeBatch(db);
+            const collections = ['transactions', 'expenses', 'presence', 'permanent_users', 'customers'];
+            for (const coll of collections) {
+                const snapshot = await getDocs(collection(db, `perfume_rooms/${FIXED_ROOM_ID}/${coll}`));
+                snapshot.forEach(doc => batch.delete(doc.ref));
+            }
+            const configDocs = ['pins', 'branch_names', 'prices', 'perfume_images'];
+            for (const config of configDocs) { batch.delete(doc(db, `perfume_rooms/${FIXED_ROOM_ID}/config/${config}`)); }
+            await batch.commit();
+            showNotification("Semua data di ruangan ini telah dihapus!", false);
+        });
+        async function moveToTrash(id, type) {
+            const collectionName = type === 'expense' ? 'expenses' : 'transactions';
+            const docPath = `perfume_rooms/${FIXED_ROOM_ID}/${collectionName}`;
+            await updateDoc(doc(db, docPath, id), { isDeleted: true, deletedAt: serverTimestamp() });
+            showNotification("Item dipindahkan ke tong sampah.");
+        }
+        
+        function handleEditAction(docId) {
+            const tx = allTransactions.find(t => t.id === docId);
+            if (tx) {
+                document.getElementById('form-title').textContent = 'Edit Transaksi';
+                document.getElementById('editing-id').value = tx.id;
+                document.getElementById('tanggal').value = tx.tanggal;
+                perfumeInput.value = tx.wangi;
+                document.getElementById('cabang').value = tx.cabang;
+                document.getElementById('form-selected-branch-display').textContent = tx.cabang;
+                if (tx.masuk > 0) {
+                    document.querySelector('input[name="transaction_type"][value="masuk"]').checked = true;
+                    document.getElementById('jumlah').value = tx.masuk;
+                    document.getElementById('customer-section-container').classList.add('hidden');
+                } else {
+                    document.querySelector('input[name="transaction_type"][value="keluar"]').checked = true;
+                    document.getElementById('jumlah').value = tx.keluar;
+                    document.getElementById('customer-section-container').classList.remove('hidden');
+                    const customer = allCustomers.find(c => c.id === tx.customerId);
+                    if (customer) {
+                        document.getElementById('customer-id').value = customer.id;
+                        customerNameInput.value = customer.name;
+                        document.getElementById('whatsapp-pembeli').value = customer.whatsapp || '';
+                        document.getElementById('catatan-pembeli').value = customer.notes || '';
+                        document.getElementById('customer-details-btn-text').textContent = customer.name;
+                    } else {
+                        resetCustomerForm();
+                        customerNameInput.value = tx.namaPembeli || '';
+                    }
+                }
+                document.getElementById('submit-btn').textContent = 'Update Transaksi';
+                document.getElementById('cancel-edit-btn').classList.remove('hidden');
+                if(formContentWrapper.classList.contains('hidden')) {
+                    formContentWrapper.classList.remove('hidden');
+                    formToggleIcon.classList.add('-rotate-180');
+                }
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        mainContentArea.addEventListener('click', (e) => {
+            const button = e.target.closest('.edit-btn, .delete-btn, .settle-payment-btn');
+            if (!button || isNavLocked) return;
+            const docId = button.dataset.id, type = button.dataset.type;
+            const action = async () => {
+                if (button.classList.contains('delete-btn')) { await moveToTrash(docId, type); } 
+                else if (button.classList.contains('edit-btn')) { handleEditAction(docId); }
+                else if (button.classList.contains('settle-payment-btn')) {
+                    const docRef = doc(db, `perfume_rooms/${FIXED_ROOM_ID}/transactions`, docId);
+                    await updateDoc(docRef, { paymentStatus: 'Lunas', paymentSettledAt: serverTimestamp() });
+                    showNotification("Transaksi telah dilunasi.");
+                }
+            };
+            performGembokProtectedAction(action);
+        });
+
+        document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+            const { id, type, name, action } = itemToPermanentlyDelete;
+            if (action === 'trash') { if (id && type) { await moveToTrash(id, type); } } 
+            else if (type === 'transaction' || type === 'expense') {
+                if (id) {
+                    const collectionName = type === 'expense' ? 'expenses' : 'transactions';
+                    await deleteDoc(doc(db, `perfume_rooms/${FIXED_ROOM_ID}/${collectionName}`, id));
+                    showNotification("Data berhasil dihapus permanen."); openTrashModal();
+                }
+            } else if (type === 'branch') {
+                if (name) {
+                    const newBranchNames = branchNames.filter(bName => bName !== name);
+                    await setDoc(doc(db, `perfume_rooms/${FIXED_ROOM_ID}/config/branch_names`), { names: newBranchNames });
+                    showNotification(`Cabang "${name}" telah dihapus.`);
+                }
+            } else if (type === 'perfume-from-catalog') {
+                if (name) {
+                    const newPerfumeImages = { ...perfumeImages }; delete newPerfumeImages[name];
+                    await setDoc(doc(db, `perfume_rooms/${FIXED_ROOM_ID}/config/perfume_images`), newPerfumeImages);
+                    showNotification(`Parfum "${name}" dihapus dari katalog.`);
+                }
+            } else if (type === 'customer') {
+                if (id) {
+                    await deleteDoc(doc(db, `perfume_rooms/${FIXED_ROOM_ID}/customers`, id));
+                    showNotification("Pelanggan berhasil dihapus.");
+                }
+            }
+            itemToPermanentlyDelete = { id: null, type: null, name: '', action: null }; 
+            hideModal(document.getElementById('delete-confirm-modal'));
+        });
+        document.getElementById('cancel-edit-btn').addEventListener('click', resetForm);
+        document.getElementById('jenis-transaksi').addEventListener('change', (e) => {
+            const isKeluar = e.target.value === 'keluar';
+            document.getElementById('customer-section-container').classList.toggle('hidden', !isKeluar);
+            document.getElementById('submit-btn').textContent = isKeluar ? 'Bayar dan Simpan Transaksi' : 'Simpan Transaksi';
+        });
+        menuButton.addEventListener('click', (e) => { e.stopPropagation(); if (!isNavLocked) { dropdownMenu.classList.toggle('hidden'); } });
+        function closeBranchDropdown(dropdown, icon) {
+            dropdown.classList.add('hidden', 'opacity-0', 'scale-95');
+            icon.classList.remove('-rotate-180');
+        }
+        document.addEventListener('click', (e) => {
+            if (!menuButton.contains(e.target) && !dropdownMenu.contains(e.target)) { dropdownMenu.classList.add('hidden'); }
+            if (!document.getElementById('form-branch-button').contains(e.target) && !document.getElementById('form-branch-dropdown').contains(e.target)) { closeBranchDropdown(document.getElementById('form-branch-dropdown'), document.getElementById('form-branch-icon')); }
+            if (!document.getElementById('recap-branch-button').contains(e.target) && !document.getElementById('recap-branch-dropdown').contains(e.target)) { closeBranchDropdown(document.getElementById('recap-branch-dropdown'), document.getElementById('recap-branch-icon')); }
+            if (!document.getElementById('customer-details-button').contains(e.target) && !document.getElementById('customer-details-dropdown').contains(e.target)) { closeBranchDropdown(document.getElementById('customer-details-dropdown'), document.getElementById('customer-details-icon')); }
+            if (!perfumeInput.contains(e.target) && !suggestionsContainer.contains(e.target)) { suggestionsContainer.classList.add('hidden'); }
+            if (!customerNameInput.contains(e.target) && !document.getElementById('customer-autocomplete').contains(e.target)) { document.getElementById('customer-autocomplete').classList.add('hidden'); }
+            const accordionButton = e.target.closest('.accordion-toggle');
+            if (accordionButton) {
+                const content = accordionButton.nextElementSibling, icon = accordionButton.querySelector('svg');
+                content.classList.toggle('open'); if(icon) icon.classList.toggle('-rotate-180');
+            }
+        });
+        document.getElementById('open-report-modal').addEventListener('click', (e) => { e.preventDefault(); performGembokProtectedAction(() => calculateAndDisplayReport(allTransactions, allExpenses, "Laporan Keuntungan (Global)")); });
+        dropdownMenu.addEventListener('click', (e) => {
+            const target = e.target.closest('.branch-report-btn');
+            if (target) {
+                e.preventDefault(); dropdownMenu.classList.add('hidden');
+                const branchName = target.dataset.branch;
+                const action = () => {
+                    const filteredTransactions = allTransactions.filter(tx => tx.cabang === branchName);
+                    calculateAndDisplayReport(filteredTransactions, allExpenses, `Laporan Keuntungan - ${branchName}`);
+                };
+                performGembokProtectedAction(action);
+            }
+        });
+        document.getElementById('open-import-modal').addEventListener('click', (e) => { e.preventDefault(); dropdownMenu.classList.add('hidden'); performGembokProtectedAction(() => showModal(document.getElementById('import-modal'))); });
+        document.getElementById('cancel-delete-btn').addEventListener('click', () => { itemToPermanentlyDelete = { id: null, type: null, name: '' }; hideModal(document.getElementById('delete-confirm-modal')); });
+        toggleFormBtn.addEventListener('click', () => { formContentWrapper.classList.toggle('hidden'); formToggleIcon.classList.toggle('-rotate-180'); });
+        function getHarga(type, amount) {
+            const amountStr = `${amount}ml`;
+            if (priceSettings[amountStr] && priceSettings[amountStr][type]) return priceSettings[amountStr][type];
+            return priceSettings.default ? (priceSettings.default[type] || 0) : 0;
+        }
+        document.getElementById('expense-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            performGembokProtectedAction(async () => {
+                const date = document.getElementById('expense-date').value, operational = parseInt(document.getElementById('operational-cost').value) || 0;
+                const salary = parseInt(document.getElementById('salary-cost').value) || 0, editingId = document.getElementById('editing-expense-id').value;
+                if (!date || (operational === 0 && salary === 0)) { showNotification("Data tidak valid.", true); return; }
+                const expenseData = { date, operational, salary };
+                const collectionPath = `perfume_rooms/${FIXED_ROOM_ID}/expenses`;
+                if (editingId) { await updateDoc(doc(db, collectionPath, editingId), expenseData); showNotification("Pengeluaran diperbarui!"); } 
+                else { await addDoc(collection(db, collectionPath), { ...expenseData, createdAt: serverTimestamp(), isDeleted: false }); showNotification("Pengeluaran disimpan!"); }
+                resetExpenseForm();
+            });
+        });
+        function resetExpenseForm() {
+            document.getElementById('expense-form').reset();
+            document.getElementById('expense-date').valueAsDate = new Date();
+            document.getElementById('editing-expense-id').value = '';
+            document.getElementById('expense-submit-btn').textContent = 'Simpan Pengeluaran';
+            document.getElementById('expense-cancel-edit-btn').classList.add('hidden');
+        }
+        document.getElementById('expense-cancel-edit-btn').addEventListener('click', resetExpenseForm);
+        function renderExpenseHistory(expenses) {
+            const activeExpenses = expenses.filter(exp => !exp.isDeleted), container = document.getElementById('expense-history-container');
+            container.innerHTML = '';
+            if (activeExpenses.length === 0) { container.innerHTML = '<p class="text-gray-500 text-center col-span-1 md:col-span-2">Belum ada riwayat pengeluaran.</p>'; return; }
+            activeExpenses.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(exp => {
+                const expDiv = document.createElement('div');
+                expDiv.className = 'bg-gray-800 p-3 rounded-lg flex flex-col gap-2';
+                let details = [];
+                if(exp.operational > 0) details.push(`<p class="text-sm">Operasional: <span class="font-semibold text-red-300">${formatRupiah(exp.operational)}</span></p>`);
+                if(exp.salary > 0) details.push(`<p class="text-sm">Gaji: <span class="font-semibold text-red-300">${formatRupiah(exp.salary)}</span></p>`);
+                expDiv.innerHTML = `<p class="text-xs text-gray-400 font-semibold">${new Date(exp.date).toLocaleDateString('id-ID', {day:'2-digit', month:'long', year:'numeric'})}</p><div class="flex-grow space-y-1">${details.join('')}</div><div class="flex gap-2 border-t border-gray-700 pt-2 mt-2"><button class="expense-edit-btn lockable-action text-xs text-yellow-400 hover:text-yellow-300 font-semibold" data-id="${exp.id}">Edit</button><button class="delete-btn lockable-action text-xs text-red-400 hover:text-red-300 font-semibold" data-id="${exp.id}" data-type="expense">Hapus</button></div>`;
+                container.appendChild(expDiv);
+            });
+            updateNavLockState();
+        }
+        document.getElementById('expense-history-container').addEventListener('click', (e) => {
+            const button = e.target.closest('button');
+            if (!button || isNavLocked) return;
+            const docId = button.dataset.id;
+            const action = () => {
+                if (button.classList.contains('delete-btn')) { moveToTrash(docId, 'expense'); } 
+                else if (button.classList.contains('expense-edit-btn')) {
+                    const expense = allExpenses.find(ex => ex.id === button.dataset.id);
+                    if (expense) {
+                        document.getElementById('editing-expense-id').value = expense.id;
+                        document.getElementById('expense-date').value = expense.date;
+                        document.getElementById('operational-cost').value = expense.operational;
+                        document.getElementById('salary-cost').value = expense.salary;
+                        document.getElementById('expense-submit-btn').textContent = 'Update Pengeluaran';
+                        document.getElementById('expense-cancel-edit-btn').classList.remove('hidden');
+                    }
+                }
+            };
+            performGembokProtectedAction(action);
+        });
+        document.getElementById('cancel-delete-all-btn').addEventListener('click', () => hideModal(document.getElementById('delete-all-confirm-modal')));
+        function resetImportModal() {
+            document.getElementById('file-input').value = ''; document.getElementById('file-name').textContent = '';
+            document.getElementById('import-csv-btn').disabled = true; parsedCsvData = null; document.getElementById('drop-area').classList.remove('highlight');
+        }
+        function handleFile(file) {
+            if (file && (file.type === "text/csv" || file.name.endsWith('.csv'))) {
+                document.getElementById('file-name').textContent = file.name;
+                Papa.parse(file, {
+                    header: true, skipEmptyLines: true,
+                    complete: (results) => { parsedCsvData = results.data; document.getElementById('import-csv-btn').disabled = false; showNotification("File CSV siap untuk diimpor.", false); },
+                    error: (err) => { showNotification(`Gagal mem-parsing file: ${err.message}`, true); resetImportModal(); }
+                });
+            } else { showNotification("Harap pilih file dengan format .csv", true); resetImportModal(); }
+        }
+        const dropArea = document.getElementById('drop-area');
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => dropArea.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false));
+        ['dragenter', 'dragover'].forEach(eventName => dropArea.addEventListener(eventName, () => dropArea.classList.add('highlight'), false));
+        ['dragleave', 'drop'].forEach(eventName => dropArea.addEventListener(eventName, () => dropArea.classList.remove('highlight'), false));
+        dropArea.addEventListener('drop', (e) => { handleFile(e.dataTransfer.files[0]); });
+        document.getElementById('file-input').addEventListener('change', (e) => { handleFile(e.target.files[0]); });
+        document.getElementById('import-csv-btn').addEventListener('click', async () => {
+            if (!parsedCsvData || parsedCsvData.length === 0) { showNotification("Tidak ada data untuk diimpor.", true); return; }
+            const batch = writeBatch(db), collectionRef = collection(db, `perfume_rooms/${FIXED_ROOM_ID}/transactions`);
+            let importCount = 0;
+            parsedCsvData.forEach(row => {
+                const { tanggal, wangi, cabang, jenis, jumlah, nama_pembeli } = row;
+                const jumlahNum = parseInt(jumlah) || 0;
+                if (tanggal && wangi && cabang && jenis && jumlahNum > 0) {
+                    const newDocRef = doc(collectionRef);
+                    batch.set(newDocRef, {
+                        tanggal, wangi, cabang,
+                        masuk: jenis.toLowerCase() === 'masuk' ? jumlahNum : 0,
+                        keluar: jenis.toLowerCase() === 'keluar' ? jumlahNum : 0,
+                        namaPembeli: jenis.toLowerCase() === 'keluar' ? (nama_pembeli || '') : '',
+                        createdAt: serverTimestamp(), isDeleted: false, lastEditor: currentUserName
+                    });
+                    importCount++;
+                }
+            });
+            try {
+                await batch.commit();
+                showNotification(`${importCount} data berhasil diimpor!`);
+                hideModal(document.getElementById('import-modal')); resetImportModal();
+            } catch (error) { console.error("Batch write failed: ", error); }
+        });
+        document.getElementById('download-template-btn').addEventListener('click', () => {
+            const csvContent = "data:text/csv;charset=utf-8," + "tanggal,wangi,cabang,jenis,jumlah,nama_pembeli\n" + "2023-12-25,Baccarat,Cabang A,masuk,100,\n" + "2023-12-26,Scandalous,Cabang B,keluar,50,John Doe";
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri); link.setAttribute("download", "template_impor_parfum.csv");
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        });
+        document.getElementById('export-excel-btn').addEventListener('click', (e) => {
+            e.preventDefault(); dropdownMenu.classList.add('hidden');
+            performGembokProtectedAction(() => {
+                const activeTransactions = allTransactions.filter(tx => !tx.isDeleted), activeExpenses = allExpenses.filter(ex => !ex.isDeleted);
+                const transactionsData = activeTransactions.map(tx => ({ Tanggal: tx.tanggal, Wangi: tx.wangi, Cabang: tx.cabang, Jenis: tx.masuk > 0 ? 'Masuk' : 'Keluar', Jumlah_ml: tx.masuk > 0 ? tx.masuk : tx.keluar, Nama_Pembeli: tx.namaPembeli || '-', Editor_Terakhir: tx.lastEditor || '-' }));
+                const stock = {};
+                activeTransactions.forEach(tx => {
+                    const key = `${tx.cabang}-${tx.wangi}`;
+                    if (!stock[key]) { stock[key] = { Cabang: tx.cabang, Wangi: tx.wangi, Stok_Terkini_ml: 0 }; }
+                    stock[key].Stok_Terkini_ml += tx.masuk - tx.keluar;
+                });
+                const stockData = Object.values(stock);
+                const expensesData = activeExpenses.map(ex => ({ Tanggal: ex.date, Biaya_Operasional: ex.operational, Gaji_Karyawan: ex.salary, Total: ex.operational + ex.salary }));
+                const wb = XLSX.utils.book_new(), wsTrans = XLSX.utils.json_to_sheet(transactionsData), wsStock = XLSX.utils.json_to_sheet(stockData), wsExpense = XLSX.utils.json_to_sheet(expensesData);
+                XLSX.utils.book_append_sheet(wb, wsTrans, "Riwayat Transaksi");
+                XLSX.utils.book_append_sheet(wb, wsStock, "Stok Terkini");
+                XLSX.utils.book_append_sheet(wb, wsExpense, "Riwayat Pengeluaran");
+                XLSX.writeFile(wb, `Laporan_Parfum_${todayString()}.xlsx`);
+                showNotification("Laporan berhasil diekspor!");
+            });
+        });
+        document.getElementById('open-trash-modal-btn').addEventListener('click', (e) => { e.preventDefault(); dropdownMenu.classList.add('hidden'); performGembokProtectedAction(() => openTrashModal()); });
+        function openTrashModal() {
+            const allDeletedItems = [...allTransactions.filter(tx => tx.isDeleted), ...allExpenses.filter(ex => ex.isDeleted)];
+            allDeletedItems.sort((a,b) => (b.deletedAt?.toDate() || 0) - (a.deletedAt?.toDate() || 0));
+            renderTrashItems(allDeletedItems);
+            showModal(document.getElementById('trash-modal'));
+        }
+        function renderTrashItems(items) {
+            const trashItemsContainer = document.getElementById('trash-items-container');
+            trashItemsContainer.innerHTML = '';
+            if (items.length === 0) { trashItemsContainer.innerHTML = '<p class="text-gray-500 text-center p-8">Tong sampah kosong.</p>'; return; }
+            items.forEach(item => {
+                const isExpense = 'operational' in item, type = isExpense ? 'expense' : 'transaction';
+                const title = isExpense ? `Pengeluaran (${formatRupiah(item.operational + item.salary)})` : `${item.wangi} (${item.masuk > 0 ? `+${item.masuk}` : `-${item.keluar}`}ml)`;
+                const date = item.date || item.tanggal, deletedDate = item.deletedAt ? item.deletedAt.toDate().toLocaleString('id-ID') : 'Tidak diketahui';
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'bg-gray-700/50 p-4 rounded-lg flex justify-between items-center';
+                itemDiv.innerHTML = `<div><p class="font-bold text-lg">${title}</p><p class="text-sm text-gray-400">Tanggal: ${date} | Dihapus: ${deletedDate}</p></div><div class="flex gap-3"><button class="restore-btn btn-3d bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg" data-id="${item.id}" data-type="${type}">Pulihkan</button><button class="perm-delete-btn btn-3d bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-4 rounded-lg" data-id="${item.id}" data-type="${type}">Hapus Permanen</button></div>`;
+                trashItemsContainer.appendChild(itemDiv);
+            });
+        }
+        document.getElementById('trash-items-container').addEventListener('click', async (e) => {
+            const button = e.target.closest('button');
+            if (!button) return;
+            const id = button.dataset.id, type = button.dataset.type;
+            const collectionName = type === 'expense' ? 'expenses' : 'transactions';
+            const docPath = `perfume_rooms/${FIXED_ROOM_ID}/${collectionName}`;
+            if (button.classList.contains('restore-btn')) {
+                await updateDoc(doc(db, docPath, id), { isDeleted: false });
+                showNotification("Item berhasil dipulihkan."); openTrashModal();
+            } else if (button.classList.contains('perm-delete-btn')) {
+                itemToPermanentlyDelete = { id, type };
+                document.getElementById('delete-confirm-message').textContent = `Yakin ingin menghapus data ini secara permanen?`;
+                showModal(document.getElementById('delete-confirm-modal'));
+            }
+        });
+        
+        document.getElementById('permanent-users-btn').addEventListener('click', (e) => {
+             e.preventDefault(); performGembokProtectedAction(() => {
+                dropdownMenu.classList.add('hidden');
+                unsubscribeFromPermanentUsers = onSnapshot(collection(db, `perfume_rooms/${FIXED_ROOM_ID}/permanent_users`), (snapshot) => {
+                    const permanentUsersList = document.getElementById('permanent-users-list');
+                    permanentUsersList.innerHTML = '';
+                     if (snapshot.empty) { permanentUsersList.innerHTML = '<p class="text-gray-500 text-center">Belum ada pengguna terdaftar.</p>'; return; }
+                    snapshot.docs.sort((a,b) => a.data().name.localeCompare(b.data().name)).forEach(doc => {
+                        const user = doc.data();
+                        const userDiv = document.createElement('div');
+                        userDiv.className = 'bg-gray-700/50 p-3 rounded-lg flex justify-between items-center';
+                        userDiv.innerHTML = `<input type="text" value="${user.name}" class="editable-user bg-transparent font-semibold flex-grow focus:outline-none rounded px-2 py-1" data-id="${doc.id}" data-original-name="${user.name}"><button class="delete-permanent-user-btn btn-3d bg-red-600 hover:bg-red-600 text-white font-semibold py-1 px-3 rounded-lg text-sm" data-id="${doc.id}">Hapus</button>`;
+                        permanentUsersList.appendChild(userDiv);
+                    });
+                });
+                showModal(document.getElementById('permanent-users-modal'));
+            });
+        });
+
+        document.getElementById('add-user-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newUserNameInput = document.getElementById('new-user-name');
+            const newName = newUserNameInput.value.trim();
+            if (newName) {
+                await addDoc(collection(db, `perfume_rooms/${FIXED_ROOM_ID}/permanent_users`), { name: newName });
+                newUserNameInput.value = '';
+                showNotification(`Pengguna "${newName}" ditambahkan.`);
+            }
+        });
+
+        document.getElementById('permanent-users-list').addEventListener('change', async (e) => {
+            if (e.target.classList.contains('editable-user')) {
+                const docId = e.target.dataset.id, newName = e.target.value.trim(), originalName = e.target.dataset.originalName;
+                if (newName && newName !== originalName) {
+                    await updateDoc(doc(db, `perfume_rooms/${FIXED_ROOM_ID}/permanent_users`, docId), { name: newName });
+                    showNotification(`Nama "${originalName}" diubah menjadi "${newName}".`);
+                } else { e.target.value = originalName; }
+            }
+        });
+
+        document.getElementById('permanent-users-list').addEventListener('click', async (e) => {
+            if (e.target.classList.contains('delete-permanent-user-btn')) {
+                await deleteDoc(doc(db, `perfume_rooms/${FIXED_ROOM_ID}/permanent_users`, e.target.dataset.id));
+                showNotification("Pengguna dihapus dari daftar.");
+            }
+        });
+
+        document.getElementById('branch-settings-btn').addEventListener('click', (e) => {
+            e.preventDefault();
+            performGembokProtectedAction(() => {
+                dropdownMenu.classList.add('hidden');
+                renderBranchSettings();
+                showModal(document.getElementById('branch-settings-modal'));
+            });
+        });
+
+        document.getElementById('pin-settings-btn').addEventListener('click', (e) => {
+            e.preventDefault();
+            performGembokProtectedAction(async () => {
+                dropdownMenu.classList.add('hidden');
+                const pinsRef = doc(db, `perfume_rooms/${FIXED_ROOM_ID}/config/pins`);
+                const docSnap = await getDoc(pinsRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    document.getElementById('user-entry-pin-input').value = data.roomEntryPin || '';
+                    document.querySelectorAll('.branch-pin-input').forEach(input => { input.value = (data.branchPins && data.branchPins[input.dataset.branch]) ? data.branchPins[input.dataset.branch] : ''; });
+                } else {
+                     document.getElementById('user-entry-pin-input').value = '';
+                     document.querySelectorAll('.branch-pin-input').forEach(input => { input.value = ''; });
+                }
+                showModal(document.getElementById('pin-settings-modal'));
+            });
+        });
+        
+        document.getElementById('pin-settings-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newRoomPin = document.getElementById('user-entry-pin-input').value;
+            const newBranchPins = {};
+            document.querySelectorAll('.branch-pin-input').forEach(input => { if (input.value) { newBranchPins[input.dataset.branch] = input.value; } });
+            await setDoc(doc(db, `perfume_rooms/${FIXED_ROOM_ID}/config/pins`), { roomEntryPin: newRoomPin, branchPins: newBranchPins });
+            showNotification("Pengaturan PIN berhasil disimpan!");
+            hideModal(document.getElementById('pin-settings-modal'));
+        });
+
+        function toggleDropdown(dropdown, icon) {
+            const isHidden = dropdown.classList.contains('hidden');
+            if (isHidden) {
+                dropdown.classList.remove('hidden');
+                setTimeout(() => { dropdown.classList.remove('opacity-0', 'scale-95'); icon.classList.add('-rotate-180'); }, 10);
+            } else {
+                dropdown.classList.add('opacity-0', 'scale-95');
+                icon.classList.remove('-rotate-180');
+                setTimeout(() => dropdown.classList.add('hidden'), 200);
+            }
+        }
+        document.getElementById('form-branch-button').addEventListener('click', (e) => { e.stopPropagation(); toggleDropdown(document.getElementById('form-branch-dropdown'), document.getElementById('form-branch-icon')); });
+        document.getElementById('recap-branch-button').addEventListener('click', (e) => { e.stopPropagation(); toggleDropdown(document.getElementById('recap-branch-dropdown'), document.getElementById('recap-branch-icon')); });
+        document.getElementById('customer-details-button').addEventListener('click', (e) => { e.stopPropagation(); toggleDropdown(document.getElementById('customer-details-dropdown'), document.getElementById('customer-details-icon')); });
+
+        document.getElementById('form-branch-dropdown').addEventListener('click', (e) => {
+            const option = e.target.closest('.form-branch-option');
+            if (option) {
+                e.preventDefault(); const branch = option.dataset.branch;
+                document.getElementById('cabang').value = branch; document.getElementById('form-selected-branch-display').textContent = branch;
+                closeBranchDropdown(document.getElementById('form-branch-dropdown'), document.getElementById('form-branch-icon'));
+            }
+        });
+        
+        perfumeInput.addEventListener('input', () => {
+            const inputText = perfumeInput.value.toLowerCase();
+            if (inputText.length === 0) { suggestionsContainer.classList.add('hidden'); return; }
+            const filteredNames = uniquePerfumeNames.filter(name => name.toLowerCase().includes(inputText));
+            if (filteredNames.length > 0) {
+                suggestionsContainer.innerHTML = filteredNames.map(name => `<div class="p-2 hover:bg-gray-700 cursor-pointer suggestion-item">${name}</div>`).join('');
+                suggestionsContainer.classList.remove('hidden');
+            } else { suggestionsContainer.classList.add('hidden'); }
+        });
+        suggestionsContainer.addEventListener('click', (e) => {
+            if (e.target.classList.contains('suggestion-item')) {
+                perfumeInput.value = e.target.textContent;
+                suggestionsContainer.classList.add('hidden');
+            }
+        });
+
+        let selectedPaymentMethod = null;
+        const paymentButtons = document.querySelectorAll('.payment-btn');
+        const cashPaymentDetails = document.getElementById('cash-payment-details');
+        const cashReceivedInput = document.getElementById('cash-received');
+        const cashChangeDisplay = document.getElementById('cash-change');
+        const confirmPaymentBtn = document.getElementById('confirm-payment-btn');
+
+        function resetPaymentModal() {
+            paymentButtons.forEach(btn => btn.classList.remove('selected'));
+            cashPaymentDetails.classList.add('hidden');
+            cashReceivedInput.value = '';
+            cashChangeDisplay.textContent = formatRupiah(0);
+            confirmPaymentBtn.disabled = true;
+            selectedPaymentMethod = null;
+            temporaryTransactionData = null;
+        }
+
+        paymentButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                paymentButtons.forEach(btn => btn.classList.remove('selected'));
+                button.classList.add('selected');
+                selectedPaymentMethod = button.dataset.method;
+                confirmPaymentBtn.disabled = false;
+                cashPaymentDetails.classList.toggle('hidden', selectedPaymentMethod !== 'Tunai');
+            });
+        });
+
+        cashReceivedInput.addEventListener('input', () => {
+            const total = parseFloat(document.getElementById('payment-total-amount').dataset.rawPrice) || 0;
+            const received = parseFloat(cashReceivedInput.value) || 0;
+            const change = received - total;
+            cashChangeDisplay.textContent = formatRupiah(change >= 0 ? change : 0);
+        });
+
+        document.getElementById('cancel-payment-btn').addEventListener('click', () => { hideModal(document.getElementById('payment-modal')); resetPaymentModal(); });
+
+        confirmPaymentBtn.addEventListener('click', () => {
+            if (!selectedPaymentMethod || !temporaryTransactionData) return;
+            const finalTransactionData = { ...temporaryTransactionData, paymentMethod: selectedPaymentMethod, paymentStatus: selectedPaymentMethod === 'Bayar Nanti' ? 'Belum Lunas' : 'Lunas' };
+            const cabang = finalTransactionData.cabang;
+            if (isGloballyUnlocked || isBranchTemporarilyUnlocked(cabang)) { saveTransaction(finalTransactionData); } 
+            else {
+                document.getElementById('branch-pin-title').textContent = `Masukkan PIN untuk ${cabang}`;
+                document.getElementById('branch-pin-input').value = ''; 
+                showModal(document.getElementById('branch-pin-modal'));
+                actionAfterBranchPin = (pin) => {
+                     if (pin === branchPins[cabang]) {
+                        unlockedBranches[cabang] = todayString();
+                        hideModal(document.getElementById('branch-pin-modal'));
+                        saveTransaction(finalTransactionData);
+                    } else { showNotification("PIN cabang salah.", true); document.getElementById('branch-pin-input').value = ''; }
+                };
+            }
+            hideModal(document.getElementById('payment-modal'));
+            resetPaymentModal();
+        });
+
+        const openRecapBtn = document.getElementById('open-recap-modal-btn');
+        const recapFilterContainer = document.getElementById('recap-filter-container');
+        const recapStartDate = document.getElementById('recap-start-date');
+        const recapEndDate = document.getElementById('recap-end-date');
+        
+        function setDefaultDates() {
+            const today = new Date();
+            const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            recapStartDate.value = firstDayOfMonth.toISOString().slice(0, 10);
+            recapEndDate.value = today.toISOString().slice(0, 10);
+        }
+
+        openRecapBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            setDefaultDates();
+            const recapBranchButton = document.getElementById('recap-branch-button');
+            if (isGloballyUnlocked) {
+                recapBranchButton.disabled = false; recapBranchButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                document.getElementById('recap-selected-branch-display').textContent = 'Semua Cabang'; recapBranchButton.dataset.value = 'semua';
+            } else {
+                recapBranchButton.disabled = true; recapBranchButton.classList.add('opacity-50', 'cursor-not-allowed');
+                document.getElementById('recap-selected-branch-display').textContent = currentUserBranch; recapBranchButton.dataset.value = currentUserBranch;
+            }
+            showModal(document.getElementById('recap-modal'));
+        });
+
+        recapFilterContainer.addEventListener('click', (e) => {
+            const button = e.target.closest('.filter-btn');
+            if (!button) return;
+            const filter = button.dataset.filter;
+            const mainFilters = { stok: recapFilterContainer.querySelector('[data-filter="stok-parfum"]'), masuk: recapFilterContainer.querySelector('[data-filter="masuk"]'), keluar: recapFilterContainer.querySelector('[data-filter="keluar"]') };
+            const paymentFilters = [...recapFilterContainer.querySelectorAll('[data-filter="Tunai"], [data-filter="Debit/Kredit"], [data-filter="QRIS"], [data-filter="Bayar Nanti"]')];
+            if (filter === 'stok-parfum') {
+                const isSelected = !mainFilters.stok.classList.contains('selected');
+                [...Object.values(mainFilters), ...paymentFilters].forEach(btn => btn.classList.toggle('selected', isSelected));
+            } else if (filter === 'keluar') {
+                button.classList.toggle('selected'); mainFilters.masuk.classList.remove('selected');
+                paymentFilters.forEach(btn => btn.classList.toggle('selected', button.classList.contains('selected')));
+            } else if (filter === 'masuk') {
+                 button.classList.toggle('selected'); mainFilters.keluar.classList.remove('selected');
+                 paymentFilters.forEach(btn => btn.classList.remove('selected'));
+            } else { button.classList.toggle('selected'); mainFilters.masuk.classList.remove('selected'); }
+            const allSelected = [...Object.values(mainFilters), ...paymentFilters].every(btn => btn.classList.contains('selected'));
+            mainFilters.stok.classList.toggle('selected', allSelected);
+            const allPaymentsSelected = paymentFilters.every(btn => btn.classList.contains('selected'));
+            mainFilters.keluar.classList.toggle('selected', allPaymentsSelected);
+        });
+
+        document.getElementById('recap-branch-dropdown').addEventListener('click', (e) => {
+            const option = e.target.closest('.recap-branch-option');
+            if (option) {
+                e.preventDefault(); const branch = option.dataset.branch;
+                document.getElementById('recap-branch-button').dataset.value = branch;
+                document.getElementById('recap-selected-branch-display').textContent = branch === 'semua' ? 'Semua Cabang' : branch;
+                closeBranchDropdown(document.getElementById('recap-branch-dropdown'), document.getElementById('recap-branch-icon'));
+            }
+        });
+
+        document.getElementById('show-recap-btn').addEventListener('click', () => {
+            const startDate = recapStartDate.value, endDate = recapEndDate.value;
+            const selectedBranch = document.getElementById('recap-branch-button').dataset.value || 'semua';
+            const selectedFilters = new Set([...document.querySelectorAll('#recap-modal .filter-btn.selected')].map(btn => btn.dataset.filter));
+            if (!startDate || !endDate) { showNotification("Harap tentukan rentang tanggal.", true); return; }
+            if (selectedFilters.size === 0) { showNotification("Harap pilih minimal satu jenis transaksi.", true); return; }
+            let filtered = allTransactions.filter(tx => {
+                const txDate = new Date(tx.tanggal), start = new Date(startDate), end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                return txDate >= start && txDate <= end && !tx.isDeleted;
+            });
+            if (selectedBranch !== 'semua') { filtered = filtered.filter(tx => tx.cabang === selectedBranch); }
+            filtered = filtered.filter(tx => {
+                if (selectedFilters.has('masuk') && tx.masuk > 0) return true;
+                if (tx.keluar > 0) {
+                    if (selectedFilters.has('keluar')) return true;
+                    if (selectedFilters.has(tx.paymentMethod)) return true;
+                    if (selectedFilters.has('Bayar Nanti') && tx.paymentStatus === 'Belum Lunas') return true;
+                }
+                return false;
+            });
+            renderData(filtered);
+            hideModal(document.getElementById('recap-modal'));
+        });
+
+        function renderBranchSettings() {
+            const branchListContainer = document.getElementById('branch-list-container');
+            branchListContainer.innerHTML = '';
+            if (branchNames.length === 0) { branchListContainer.innerHTML = '<p class="text-gray-500 text-center">Belum ada cabang.</p>'; }
+            branchNames.forEach((name, index) => {
+                const div = document.createElement('div');
+                div.className = 'bg-gray-700/50 p-3 rounded-lg flex justify-between items-center';
+                div.dataset.branchName = name;
+                div.innerHTML = `<div class="flex-grow"><span class="branch-name-display font-semibold">${name}</span></div><div class="flex gap-2 branch-actions"><button class="edit-branch-btn p-2 bg-yellow-600/80 hover:bg-yellow-600 rounded-full btn-3d" data-index="${index}" title="Edit"><svg class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L14.732 3.732z"></path></svg></button><button class="delete-branch-btn p-2 bg-red-600/80 hover:bg-red-600 rounded-full btn-3d" data-name="${name}" title="Hapus"><svg class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button></div>`;
+                branchListContainer.appendChild(div);
+            });
+        }
+
+        document.getElementById('add-branch-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newBranchInput = document.getElementById('new-branch-name');
+            const newName = newBranchInput.value.trim();
+            if (newName && !branchNames.includes(newName)) {
+                const updatedBranches = [...branchNames, newName];
+                await setDoc(doc(db, `perfume_rooms/${FIXED_ROOM_ID}/config/branch_names`), { names: updatedBranches });
+                newBranchInput.value = '';
+                showNotification(`Cabang "${newName}" berhasil ditambahkan.`);
+            } else if (branchNames.includes(newName)) { showNotification(`Cabang "${newName}" sudah ada.`, true); }
+        });
+
+        document.getElementById('branch-list-container').addEventListener('click', async (e) => {
+            const editBtn = e.target.closest('.edit-branch-btn'), deleteBtn = e.target.closest('.delete-branch-btn');
+            const saveBtn = e.target.closest('.save-branch-btn'), cancelBtn = e.target.closest('.cancel-edit-branch-btn');
+            if (editBtn) {
+                const branchDiv = editBtn.closest('div.p-3'), branchNameSpan = branchDiv.querySelector('.branch-name-display');
+                const actionsDiv = branchDiv.querySelector('.branch-actions'), oldName = branchNameSpan.textContent;
+                branchDiv.querySelector('.flex-grow').innerHTML = `<input type="text" value="${oldName}" class="branch-edit-input w-full bg-gray-600 font-semibold rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-lime-500">`;
+                actionsDiv.innerHTML = `<button class="save-branch-btn p-2 bg-green-600/80 hover:bg-green-600 rounded-full btn-3d" data-old-name="${oldName}" title="Simpan"><svg class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></button><button class="cancel-edit-branch-btn p-2 bg-gray-600/80 hover:bg-gray-600 rounded-full btn-3d" title="Batal"><svg class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                branchDiv.querySelector('.branch-edit-input').focus();
+            }
+            if (cancelBtn) { renderBranchSettings(); }
+            if (saveBtn) {
+                const oldName = saveBtn.dataset.oldName, branchDiv = saveBtn.closest('div.p-3');
+                const newName = branchDiv.querySelector('.branch-edit-input').value.trim();
+                if (newName && newName !== oldName) {
+                    showNotification(`Memperbarui nama cabang dari "${oldName}" ke "${newName}"...`);
+                    const updatedBranches = branchNames.map(name => name === oldName ? newName : name);
+                    const batch = writeBatch(db);
+                    const q = query(collection(db, `perfume_rooms/${FIXED_ROOM_ID}/transactions`), where('cabang', '==', oldName));
+                    const querySnapshot = await getDocs(q);
+                    querySnapshot.forEach((doc) => batch.update(doc.ref, { cabang: newName }));
+                    batch.set(doc(db, `perfume_rooms/${FIXED_ROOM_ID}/config/branch_names`), { names: updatedBranches });
+                    await batch.commit();
+                    showNotification("Nama cabang dan semua data terkait berhasil diperbarui!");
+                } else { renderBranchSettings(); }
+            }
+            if (deleteBtn) {
+                const nameToDelete = deleteBtn.dataset.name;
+                itemToPermanentlyDelete = { id: null, type: 'branch', name: nameToDelete };
+                document.getElementById('delete-confirm-message').textContent = `Yakin ingin menghapus cabang "${nameToDelete}"? Ini hanya akan menghapus nama dari daftar, tidak dengan data transaksinya.`;
+                showModal(document.getElementById('delete-confirm-modal'));
+            }
+        });
+        
+        document.getElementById('open-catalog-btn').addEventListener('click', () => { renderPerfumeCatalog(); showModal(document.getElementById('catalog-modal')); });
+        document.getElementById('manage-images-btn').addEventListener('click', () => { performGembokProtectedAction(() => { renderImageManager(); showModal(document.getElementById('image-manager-modal')); }); });
+
+        function renderPerfumeCatalog() {
+            const catalogGrid = document.getElementById('catalog-grid-container');
+            catalogGrid.innerHTML = '';
+            if (uniquePerfumeNames.length === 0) { catalogGrid.innerHTML = '<p class="text-gray-500 text-center col-span-full">Belum ada parfum di database.</p>'; return; }
+            uniquePerfumeNames.forEach(name => {
+                const imageUrl = perfumeImages[name] || `https://placehold.co/400x400/2d3748/ffffff?text=${name.charAt(0)}`;
+                const card = document.createElement('div');
+                card.className = 'catalog-card bg-gray-800 rounded-lg overflow-hidden shadow-lg transform hover:scale-105 transition-transform duration-300';
+                card.innerHTML = `<img src="${imageUrl}" alt="${name}" class="w-full h-40 object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x400/2d3748/ffffff?text=${name.charAt(0)}';"><div class="p-3"><h4 class="font-semibold truncate">${name}</h4><button class="select-perfume-btn w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-2 px-3 rounded-lg btn-3d" data-name="${name}">Pilih</button></div>`;
+                catalogGrid.appendChild(card);
+            });
+        }
+        
+        document.getElementById('catalog-grid-container').addEventListener('click', (e) => {
+            const selectBtn = e.target.closest('.select-perfume-btn');
+            if (selectBtn) { perfumeInput.value = selectBtn.dataset.name; hideModal(document.getElementById('catalog-modal')); }
+        });
+
+        function renderImageManager() {
+            const imageManagerList = document.getElementById('image-manager-list');
+            imageManagerList.innerHTML = '';
+            const allKnownPerfumes = [...new Set([...uniquePerfumeNames, ...Object.keys(perfumeImages)])].sort();
+            allKnownPerfumes.forEach(name => {
+                const imageUrl = perfumeImages[name] || `https://placehold.co/100x100/4a5568/ffffff?text=${name.charAt(0)}`;
+                const item = document.createElement('div');
+                item.className = 'grid grid-cols-[1fr,auto] gap-3 items-center bg-gray-700/50 p-2 rounded-lg';
+                item.innerHTML = `<div class="flex items-center gap-3"><img src="${imageUrl}" class="w-12 h-12 rounded-md object-cover bg-gray-700 image-preview" data-name="${name}" onerror="this.onerror=null;this.src='https://placehold.co/100x100/4a5568/ffffff?text=${name.charAt(0)}';"><div class="flex-grow perfume-name-container"><span class="font-semibold perfume-name-display">${name}</span></div></div><div class="flex items-center gap-2 perfume-actions"><input type="file" class="hidden image-file-input" data-name="${name}" accept="image/*"><button class="select-image-btn btn-3d bg-gray-600 hover:bg-gray-500 text-white font-semibold py-2 px-3 rounded-lg text-sm">Ganti Gambar</button><button class="edit-perfume-btn p-2 bg-yellow-600/80 hover:bg-yellow-600 rounded-full btn-3d" title="Edit Nama"><svg class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L14.732 3.732z"></path></svg></button><button class="delete-perfume-btn p-2 bg-red-600/80 hover:bg-red-600 rounded-full btn-3d" title="Hapus Parfum"><svg class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button></div>`;
+                imageManagerList.appendChild(item);
+            });
+        }
+
+        document.getElementById('add-perfume-to-catalog-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newPerfumeInput = document.getElementById('new-perfume-name');
+            const newName = newPerfumeInput.value.trim();
+            const allKnownPerfumes = [...new Set([...uniquePerfumeNames, ...Object.keys(perfumeImages)])];
+            if (newName && !allKnownPerfumes.includes(newName)) {
+                perfumeImages[newName] = "";
+                await setDoc(doc(db, `perfume_rooms/${FIXED_ROOM_ID}/config/perfume_images`), perfumeImages);
+                newPerfumeInput.value = '';
+                showNotification(`Parfum "${newName}" ditambahkan ke katalog.`);
+            } else if (allKnownPerfumes.includes(newName)) { showNotification(`Parfum "${newName}" sudah ada di katalog.`, true); }
+        });
+
+        document.getElementById('image-manager-list').addEventListener('click', async (e) => {
+            const selectBtn = e.target.closest('.select-image-btn'), editBtn = e.target.closest('.edit-perfume-btn'), deleteBtn = e.target.closest('.delete-perfume-btn');
+            const saveBtn = e.target.closest('.save-perfume-btn'), cancelBtn = e.target.closest('.cancel-edit-perfume-btn');
+            if (selectBtn) { selectBtn.previousElementSibling.click(); }
+            if (deleteBtn) {
+                const perfumeName = deleteBtn.closest('.grid').querySelector('.perfume-name-display').textContent;
+                itemToPermanentlyDelete = { id: null, type: 'perfume-from-catalog', name: perfumeName };
+                document.getElementById('delete-confirm-message').textContent = `Yakin ingin menghapus "${perfumeName}" dari katalog gambar? Ini tidak akan menghapus riwayat transaksinya.`;
+                showModal(document.getElementById('delete-confirm-modal'));
+            }
+            if (editBtn) {
+                const row = editBtn.closest('.grid'), nameContainer = row.querySelector('.perfume-name-container');
+                const actionsContainer = row.querySelector('.perfume-actions'), oldName = nameContainer.querySelector('.perfume-name-display').textContent;
+                nameContainer.innerHTML = `<input type="text" value="${oldName}" class="perfume-edit-input w-full bg-gray-600 font-semibold rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-yellow-500">`;
+                actionsContainer.innerHTML = `<button class="save-perfume-btn p-2 bg-green-600/80 hover:bg-green-600 rounded-full btn-3d" data-old-name="${oldName}" title="Simpan"><svg class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></button><button class="cancel-edit-perfume-btn p-2 bg-gray-600/80 hover:bg-gray-600 rounded-full btn-3d" title="Batal"><svg class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                nameContainer.querySelector('input').focus();
+            }
+            if (cancelBtn) { renderImageManager(); }
+            if (saveBtn) {
+                const row = saveBtn.closest('.grid'), oldName = saveBtn.dataset.oldName;
+                const newName = row.querySelector('.perfume-edit-input').value.trim();
+                const allKnownPerfumes = [...new Set([...uniquePerfumeNames, ...Object.keys(perfumeImages)])];
+                if (!newName) { showNotification("Nama parfum tidak boleh kosong.", true); return; }
+                if (newName !== oldName && allKnownPerfumes.includes(newName)) { showNotification(`Nama parfum "${newName}" sudah ada.`, true); return; }
+                if (newName === oldName) { renderImageManager(); return; }
+                showNotification(`Memperbarui "${oldName}" menjadi "${newName}"...`);
+                const batch = writeBatch(db);
+                const q = query(collection(db, `perfume_rooms/${FIXED_ROOM_ID}/transactions`), where("wangi", "==", oldName));
+                const querySnapshot = await getDocs(q);
+                querySnapshot.forEach(doc => batch.update(doc.ref, { wangi: newName }));
+                const newPerfumeImages = { ...perfumeImages };
+                if (newPerfumeImages[oldName]) { newPerfumeImages[newName] = newPerfumeImages[oldName]; delete newPerfumeImages[oldName]; }
+                batch.set(doc(db, `perfume_rooms/${FIXED_ROOM_ID}/config/perfume_images`), newPerfumeImages);
+                await batch.commit();
+                showNotification("Nama parfum berhasil diperbarui di semua data.");
+            }
+        });
+
+        document.getElementById('image-manager-list').addEventListener('change', (e) => {
+            if (e.target.classList.contains('image-file-input')) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const row = e.target.closest('.grid'), previewImg = row.querySelector('.image-preview');
+                        previewImg.src = event.target.result; previewImg.dataset.base64 = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+        });
+
+        document.getElementById('save-images-btn').addEventListener('click', async () => {
+            const previews = document.querySelectorAll('.image-preview');
+            const newImageUrls = { ...perfumeImages };
+            let hasChanges = false;
+            previews.forEach(img => { if (img.dataset.base64) { newImageUrls[img.dataset.name] = img.dataset.base64; hasChanges = true; } });
+            if (hasChanges) {
+                await setDoc(doc(db, `perfume_rooms/${FIXED_ROOM_ID}/config/perfume_images`), newImageUrls);
+                showNotification("Gambar berhasil disimpan!");
+            } else { showNotification("Tidak ada perubahan gambar."); }
+            hideModal(document.getElementById('image-manager-modal'));
+        });
+
+        function resetCustomerForm() {
+            document.getElementById('customer-id').value = '';
+            customerNameInput.value = '';
+            document.getElementById('whatsapp-pembeli').value = '';
+            document.getElementById('catatan-pembeli').value = '';
+            document.getElementById('customer-details-btn-text').textContent = 'Data Pembeli';
+        }
+
+        customerNameInput.addEventListener('input', () => {
+            const inputText = customerNameInput.value;
+            temporaryCustomerData.name = inputText;
+            document.getElementById('customer-details-btn-text').textContent = inputText || 'Data Pembeli';
+            document.getElementById('customer-id').value = '';
+            if (inputText.length === 0) { document.getElementById('customer-autocomplete').classList.add('hidden'); return; }
+            const filteredCustomers = allCustomers.filter(c => c.name.toLowerCase().includes(inputText.toLowerCase()));
+            if (filteredCustomers.length > 0) {
+                document.getElementById('customer-autocomplete').innerHTML = filteredCustomers.map(c => `<div class="p-2 hover:bg-gray-700 cursor-pointer customer-suggestion-item" data-id="${c.id}">${c.name}</div>`).join('');
+                document.getElementById('customer-autocomplete').classList.remove('hidden');
+            } else { document.getElementById('customer-autocomplete').classList.add('hidden'); }
+        });
+        ['whatsapp-pembeli', 'catatan-pembeli'].forEach(id => {
+            document.getElementById(id).addEventListener('input', (e) => {
+                temporaryCustomerData[id.split('-')[0]] = e.target.value;
+            });
+        });
+
+        document.getElementById('customer-autocomplete').addEventListener('click', (e) => {
+            if (e.target.classList.contains('customer-suggestion-item')) {
+                const customerId = e.target.dataset.id;
+                const customer = allCustomers.find(c => c.id === customerId);
+                if (customer) {
+                    document.getElementById('customer-id').value = customer.id;
+                    customerNameInput.value = customer.name;
+                    document.getElementById('whatsapp-pembeli').value = customer.whatsapp || '';
+                    document.getElementById('catatan-pembeli').value = customer.notes || '';
+                    document.getElementById('customer-details-btn-text').textContent = customer.name;
+                }
+                document.getElementById('customer-autocomplete').classList.add('hidden');
+            }
+        });
+
+        document.getElementById('open-customer-list-btn').addEventListener('click', () => {
+            renderCustomerList();
+            showModal(document.getElementById('customer-list-modal'));
+        });
+        document.getElementById('customer-search-input').addEventListener('input', (e) => renderCustomerList(e.target.value));
+
+        function renderCustomerList(searchTerm = '') {
+            const container = document.getElementById('customer-list-container');
+            container.innerHTML = '';
+            const filtered = allCustomers.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
+            if (filtered.length === 0) { container.innerHTML = '<p class="text-gray-500 text-center">Tidak ada pelanggan yang cocok.</p>'; return; }
+            filtered.sort((a,b) => a.name.localeCompare(b.name)).forEach(customer => {
+                const customerDiv = document.createElement('div');
+                customerDiv.className = 'bg-gray-700/50 p-3 rounded-lg';
+                customerDiv.dataset.id = customer.id;
+                customerDiv.innerHTML = `
+                    <div class="customer-view">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h4 class="text-lg font-bold text-teal-300">${customer.name}</h4>
+                                ${customer.whatsapp ? `<p class="text-sm text-gray-300">WA: ${customer.whatsapp}</p>` : ''}
+                            </div>
+                            <div class="flex gap-2">
+                                <button class="select-customer-btn btn-3d bg-teal-600 hover:bg-teal-700 text-sm font-semibold py-1 px-3 rounded-lg" data-id="${customer.id}">Pilih</button>
+                                <button class="edit-customer-btn btn-3d p-2 bg-yellow-600/80 hover:bg-yellow-600 rounded-full" title="Edit"><svg class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L14.732 3.732z"></path></svg></button>
+                                <button class="delete-customer-btn btn-3d p-2 bg-red-600/80 hover:bg-red-600 rounded-full" title="Hapus"><svg class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+                            </div>
+                        </div>
+                        ${customer.notes ? `<p class="text-xs text-gray-400 mt-2 border-t border-gray-600 pt-2">Catatan: ${customer.notes}</p>` : ''}
+                    </div>
+                    <div class="customer-edit-view hidden space-y-2">
+                        <input type="text" value="${customer.name}" class="customer-edit-name w-full bg-gray-600 font-semibold rounded px-2 py-1">
+                        <input type="tel" value="${customer.whatsapp || ''}" placeholder="No. Whatsapp" class="customer-edit-whatsapp w-full bg-gray-600 rounded px-2 py-1">
+                        <textarea rows="2" placeholder="Catatan" class="customer-edit-notes w-full bg-gray-600 rounded px-2 py-1">${customer.notes || ''}</textarea>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button class="cancel-edit-customer-btn btn-3d bg-gray-500 hover:bg-gray-400 text-sm font-semibold py-1 px-3 rounded-lg">Batal</button>
+                            <button class="save-customer-btn btn-3d bg-green-600 hover:bg-green-700 text-sm font-semibold py-1 px-3 rounded-lg">Simpan</button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(customerDiv);
+            });
+        }
+
+        document.getElementById('customer-list-container').addEventListener('click', async (e) => {
+            const selectBtn = e.target.closest('.select-customer-btn'), editBtn = e.target.closest('.edit-customer-btn'), deleteBtn = e.target.closest('.delete-customer-btn');
+            const saveBtn = e.target.closest('.save-customer-btn'), cancelBtn = e.target.closest('.cancel-edit-customer-btn');
+            const customerDiv = e.target.closest('.p-3');
+            if (!customerDiv) return;
+            const customerId = customerDiv.dataset.id;
+
+            if (selectBtn) {
+                const customer = allCustomers.find(c => c.id === customerId);
+                if (customer) {
+                    document.getElementById('customer-id').value = customer.id;
+                    customerNameInput.value = customer.name;
+                    document.getElementById('whatsapp-pembeli').value = customer.whatsapp || '';
+                    document.getElementById('catatan-pembeli').value = customer.notes || '';
+                    document.getElementById('customer-details-btn-text').textContent = customer.name;
+                    hideModal(document.getElementById('customer-list-modal'));
+                }
+            }
+            if (editBtn) {
+                customerDiv.querySelector('.customer-view').classList.add('hidden');
+                customerDiv.querySelector('.customer-edit-view').classList.remove('hidden');
+            }
+            if (cancelBtn) {
+                customerDiv.querySelector('.customer-view').classList.remove('hidden');
+                customerDiv.querySelector('.customer-edit-view').classList.add('hidden');
+            }
+            if (deleteBtn) {
+                itemToPermanentlyDelete = { id: customerId, type: 'customer' };
+                document.getElementById('delete-confirm-message').textContent = `Yakin ingin menghapus pelanggan ini?`;
+                showModal(document.getElementById('delete-confirm-modal'));
+            }
+            if (saveBtn) {
+                const updatedData = {
+                    name: customerDiv.querySelector('.customer-edit-name').value.trim(),
+                    whatsapp: customerDiv.querySelector('.customer-edit-whatsapp').value.trim(),
+                    notes: customerDiv.querySelector('.customer-edit-notes').value.trim(),
+                };
+                if (updatedData.name) {
+                    await updateDoc(doc(db, `perfume_rooms/${FIXED_ROOM_ID}/customers`, customerId), updatedData);
+                    showNotification("Data pelanggan diperbarui.");
+                } else { showNotification("Nama pelanggan tidak boleh kosong.", true); }
+            }
+        });
+
+        // --- Splash Screen & Modal Click-Outside Logic ---
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                const splash = document.getElementById('splash-screen');
+                const main = document.getElementById('main-content');
+                splash.classList.add('hidden');
+                main.classList.remove('opacity-0');
+            }, 1500);
+            
+            document.querySelectorAll('.modal-backdrop').forEach(modal => {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) { hideModal(modal); }
+                });
+                modal.querySelectorAll('.close-modal-btn').forEach(btn => {
+                    btn.addEventListener('click', () => hideModal(modal));
+                });
+            });
+        });
+
+    </script>
+</body>
+</html>
+
